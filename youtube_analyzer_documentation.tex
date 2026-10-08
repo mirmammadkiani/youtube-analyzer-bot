@@ -1,0 +1,217 @@
+% !TEX TS-program = xelatex
+% !TEX encoding = UTF-8 Unicode
+
+\documentclass[11pt,a4paper]{report}
+
+% --- Packages ---
+\usepackage{geometry}
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{fancyvrb}
+\usepackage{tcolorbox}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{hyperref}
+
+% --- Colors Definition ---
+\definecolor{primaryblue}{RGB}{26, 115, 232}
+\definecolor{darknavy}{RGB}{13, 37, 63}
+\definecolor{codegray}{RGB}{245, 247, 250}
+\definecolor{bordergray}{RGB}{220, 224, 230}
+\definecolor{accentgreen}{RGB}{46, 125, 50}
+\definecolor{accentred}{RGB}{198, 40, 40}
+
+% --- Hyperref Setup ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primaryblue,
+    filecolor=magenta,
+    urlcolor=primaryblue,
+    citecolor=accentgreen,
+    pdftitle={مستندات جامع فنی ربات تحلیلگر یوتیوب},
+    pdfauthor={تیم توسعه هوش مصنوعی}
+}
+
+% --- Custom Info Box ---
+\newtcolorbox{infobox}[1]{
+    colback=codegray,
+    colframe=primaryblue,
+    fonttitle=\bfseries,
+    coltitle=white,
+    title=#1,
+    arc=3mm,
+    boxrule=1pt
+}
+
+\newtcolorbox{warningbox}[1]{
+    colback=white,
+    colframe=accentred,
+    fonttitle=\bfseries,
+    coltitle=white,
+    title=#1,
+    arc=3mm,
+    boxrule=1pt
+}
+
+% --- Persian Configuration (xepersian must be last) ---
+\usepackage{xepersian}
+\settextfont[Scale=1.0]{Tahoma}
+\setlatintextfont[Scale=0.95]{Arial}
+
+\title{\Huge\textbf{مستندات جامع فنی و معماری سامانه}\\
+\LARGE\textbf{ربات هوشمند تحلیل و پردازش ویدیوهای یوتیوب}\\
+\large\textbf{(YouTube Analyzer Telegram Bot)}}
+
+\author{\textbf{مهندسی سیستم‌های ابری و یادگیری عمیق}\\
+مبتنی بر \lr{Cloudflare Workers} و \lr{Google Gemini AI}}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+% =========================================================================
+\chapter{مقدمه و معماری کلان سامانه}
+% =========================================================================
+
+\section{چکیده اجرایی}
+سامانه تحلیلگر ویدیوی یوتیوب، یک بستر تمام‌ابری بدون سرور (\lr{Serverless}) بر بستر \lr{Cloudflare Workers} است که با تکیه بر پیام‌رسان تلگرام به عنوان رابط کاربری (\lr{Frontend}) و مدل‌های هوش مصنوعی چندوجهی \lr{Google Gemini}، امکان استخراج، پردازش، خلاصه‌سازی و شرح صحنه‌به‌صحنه ویدیوهای یوتیوب را به زبان فارسی فراهم می‌سازد.
+
+این سیستم با غلبه بر محدودیت‌های رایج پلتفرم تلگرام (مانند سقف ۴۰۹۶ کاراکتری پیام‌ها) و چالش‌های مصرف منابع در مدل‌های زبانی بزرگ (همچون \lr{Front-Loading Bias} و سقف توکن‌های در دقیقه یا \lr{TPM})، راهکاری پایدار، مقیاس‌پذیر و فوق‌سریع ارائه می‌دهد.
+
+\begin{infobox}{معماری سه‌لایه سامانه}
+\begin{enumerate}
+    \item \textbf{لایه ارتباطی (رابط تلگرام):} دریافت وب‌هوک‌ها، مدیریت تعامل با کاربر و نمایش پیام‌های چندبخشی.
+    \item \textbf{لایه پردازش لبه (ورکر کلودفلر):} نرمال‌سازی پیوندها، اعتبارسنجی کاربر، زمان‌بندی کلیدهای \lr{API} و کشینگ داده‌ها.
+    \item \textbf{لایه هوش مصنوعی (Google Gemini):} دریافت فریم‌های ویدیو و صوت، پردازش معنایی چندوجهی و تولید متن فارسی منطبق با ساختار زمانی.
+\end{enumerate}
+\end{infobox}
+
+\section{ویژگی‌ها و دستاوردهای کلیدی سیستم}
+\begin{itemize}
+    \item \textbf{سه حالت تحلیلی متنوع:}
+    \begin{itemize}
+        \item \textbf{خلاصه کوتاه و سریع:} استخراج جوهره و پیام کلیدی در ۲ الی ۳ پاراگراف فشرده.
+        \item \textbf{تحلیل کامل و جامع:} کالبدشکافی ساختاری همراه با استدلال زنجیره‌ای تفکر (\lr{Chain of Thought}) در کادرهای تاشونده مدرن تلگرام (\lr{Expandable Blockquote}).
+        \item \textbf{شرح ویدیو:} روایت داستانی گام‌به‌گام با پیوندهای کلیک‌پذیر زمانی (\lr{Timestamps}) به ثانیه دقیق ویدیو در یوتیوب.
+    \end{itemize}
+    \item \textbf{تثبیت زمانی دقیق (\lr{Duration Grounding}):} رفع نقص پایان زودهنگام تحلیل و اجبار هوش مصنوعی به پوشش یکنواخت تا انتهای ویدیو.
+    \item \textbf{استراتژی کشینگ بهینه (\lr{KV Cache}):} ذخیره‌سازی ۳۰ روزه نتایج و تحویل آنی (کمتر از ۵۰ میلی‌ثانیه) در درخواست‌های مکرر بدون مصرف توکن.
+    \item \textbf{مدیریت خطای سهمیه (\lr{Multi-Key Failover}):} چرخش و جایگزینی خودکار بین کلیدهای متعدد در مواجهه با خطای \lr{HTTP 429}.
+    \item \textbf{امنیت و کنترل دسترسی (\lr{Whitelist System}):} مکانیزم تایید دستی کاربران جدید توسط مدیر با قابلیت پاسخ بلادرنگ اینلاین.
+\end{itemize}
+
+% =========================================================================
+\chapter{چرخه حیات پردازش درخواست (Request Lifecycle)}
+% =========================================================================
+
+\section{مراحل گام‌به‌گام از دریافت پیوند تا تحویل خروجی}
+\begin{enumerate}
+    \item \textbf{دریافت وب‌هوک و اعتبارسنجی مقدماتی:} دریافت درخواست \lr{POST} از تلگرام و بررسی لیست سفید.
+    \item \textbf{استخراج شناسه ویدیو (\lr{Video ID}):} نرمال‌سازی لینک با \lr{RegEx} و استخراج شناسه ۱۱ رقمی.
+    \item \textbf{واکشی فراداده‌های ویدیو (\lr{Metadata}):} استخراج عنوان، سازنده و طول دقیق ویدیو به ثانیه (\lr{lengthSeconds}).
+    \item \textbf{ارزیابی کش محلی (\lr{KV Cache Lookup}):} تحویل آنی در کمتر از ۵۰ میلی‌ثانیه در صورت وجود در کش.
+    \item \textbf{پیکربندی پرامپت براساس زمان:} محاسبه زمان دقیق به فرمت دقیقه و ثانیه و تزریق به پرامپت.
+    \item \textbf{ارسال درخواست چندوجهی به Google Gemini:} ارسال مستقیم آدرس ویدیو در شیء \lr{fileData} با \lr{mimeType: "video/*"}.
+    \item \textbf{قالب‌بندی و تبدیل به HTML سازگار با تلگرام:} استخراج تایم‌استمپ‌ها و تبدیل به لینک کلیک‌پذیر.
+    \item \textbf{قطعه‌بندی و ارسال چندمرحله‌ای (\lr{Chunking}):} تقسیم متون بالای ۳۹۰۰ کاراکتر بر اساس مرز پاراگراف‌ها.
+\end{enumerate}
+
+% =========================================================================
+\chapter{ارتباط با Google Gemini API و محاسبات توکن}
+% =========================================================================
+
+\section{ساختار درخواست ورودی (Request Payload)}
+\begin{latin}
+\begin{Verbatim}[frame=single,fontsize=\small,numbers=left]
+{
+  "contents": [{
+    "parts": [
+      {
+        "fileData": {
+          "fileUri": "https://www.youtube.com/watch?v=s1Xxxxxxx",
+          "mimeType": "video/*"
+        }
+      },
+      { "text": "سیستم پرامپت و دستورالعمل با زمان ویدیو..." }
+    ]
+  }],
+  "generationConfig": { "temperature": 0.3, "topK": 40, "topP": 0.95 }
+}
+\end{Verbatim}
+\end{latin}
+
+\section{محاسبه ریاضی توکن‌های مصرفی ویدیو و محدودیت TPM}
+طبق مستندات رسمی \lr{Google AI Studio}:
+\begin{itemize}
+    \item \textbf{فریم‌های تصویر (Video Frames):} در هر ثانیه ۱ فریم استخراج می‌شود. هر فریم بین ۱۰۰ الی ۲۶۳ توکن مصرف می‌کند.
+    \item \textbf{جریان صوتی (Audio Track):} معادل ۳۲ توکن در ثانیه مصرف می‌نماید.
+    \item \textbf{مجموع نرخ مصرف متوسط:} حدود ۲۹۵ توکن در ثانیه (معادل ۱۷٬۷۰۰ توکن در دقیقه).
+\end{itemize}
+
+\begin{warningbox}{علت قطع تحلیل در دقیقه ۱۴ الی ۱۵ در پلن رایگان}
+یک ویدیوی ۱۴ دقیقه‌ای حدود ۲۴۷٬۸۰۰ توکن ورودی تولید می‌کند که به سقف ۲۵۰٬۰۰۰ توکن در دقیقه (\lr{TPM}) پلن رایگان گوگل می‌رسد و موجب رخداد خطای \lr{HTTP 429} می‌گردد. با تکنیک \lr{Duration Grounding} و \lr{Failover Pool} این چالش مدیریت شده است.
+\end{warningbox}
+
+% =========================================================================
+\chapter{مهندسی پرامپت و تثبیت زمانی (Duration Grounding)}
+% =========================================================================
+
+\section{علت‌شناسی پدیده انحراف به جلو (Front-Loading Bias)}
+مدل‌های زبانی در مواجهه با ویدیوهای بلند، تمایل دارند تمام تمرکز و بودجه توکن خروجی خود را به ۱۰ تا ۱۵ دقیقه اول اختصاص دهند.
+
+\section{پیاده‌سازی Duration Grounding}
+\begin{latin}
+\begin{Verbatim}[frame=single,fontsize=\small]
+const durationSec = meta.duration || 0;
+const durationFormatted = durationSec > 0 ? formatDuration(durationSec) : "";
+const durationMinutes = durationSec > 0 ? Math.round(durationSec / 60) : 0;
+
+// تزریق زمان در پرامپت:
+// مدت زمان کامل این اثر: 23:40 (حدود 24 دقیقه) است.
+// قانون حیاتی توزیع زمانی: کل ویدیو باید به طور متوازن پوشش داده شود.
+// روایت را از [00:00] آغاز کرده و با فواصل منظم تا ثانیه‌های پایانی ادامه بده.
+\end{Verbatim}
+\end{latin}
+
+% =========================================================================
+\chapter{قطعه‌بندی پیام‌ها و تطبیق با محدودیت‌های تلگرام}
+% =========================================================================
+
+\section{الگوریتم هوشمند قطعه‌بندی (Split Text Chunks)}
+تلگرام اجازه ارسال پیام‌های بلندتر از ۴۰۹۶ کاراکتر را نمی‌دهد. تابع \lr{\texttt{splitTextChunks}} با سقف ۳۹۰۰ کاراکتر متن را با اولویت‌بندی زیر تفکیک می‌کند:
+\begin{enumerate}
+    \item شکستن بر اساس مرز دو خط تیره (\lr{\texttt{\textbackslash n\textbackslash n}} - پایان پاراگراف).
+    \item شکستن بر اساس تک‌خط (\lr{\texttt{\textbackslash n}}).
+    \item شکستن در پایان جمله (\lr{\texttt{. }}).
+    \item حفظ تمامیت تگ‌های \lr{HTML}.
+\end{enumerate}
+
+% =========================================================================
+\chapter{پایگاه داده لبه (Cloudflare Workers KV)}
+% =========================================================================
+
+\begin{table}[htbp]
+\centering
+\caption{کلیدهای ذخیره‌سازی در پایگاه داده لبه}
+\begin{tabular}{p{5.5cm}cp{5cm}}
+\toprule
+\textbf{فرمت نام کلید} & \textbf{مدت اعتبار (TTL)} & \textbf{توضیحات و کاربرد} \\
+\midrule
+\texttt{cache\_\{mode\}\_\{videoId\}} & ۳۰ روز & ذخیره تحلیل آماده جهت تحویل فوری با صفر توکن \\
+\texttt{whitelist\_user\_\{id\}} & دائمی & مشخص‌کننده مجاز بودن کاربر در سیستم \\
+\texttt{stats\_daily\_\{date\}\_\{key\}} & ۷ روز & شمارنده تعداد مصرف هر کلید Gemini \\
+\texttt{logs\_system} & دائمی (مدور) & ۵۰ لاگ اخیر خطاها و وقایع حساس \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

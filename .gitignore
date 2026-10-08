@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.wrangler/
+
+# Environment Variables & Secrets
+.dev.vars
+.dev.vars.local
+.env
+.env.*
+!.env.example
+!.dev.vars.example
+
+# Logs & temp compilation artifacts
+*.log
+*.aux
+*.out
+*.toc
+texput.log
+test.tex
+test_xepersian.tex
+test_xepersian.log
+worker.js.*
+
+# Local archives
+*.zip
+

@@ -1,0 +1,12 @@
+{
+  "name": "youtube-analyzer-bot",
+  "version": "1.1.0",
+  "description": "Telegram Bot on Cloudflare Workers for analyzing YouTube videos using Gemini AI",
+  "main": "worker.js",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

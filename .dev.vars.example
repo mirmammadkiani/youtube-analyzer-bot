@@ -1,0 +1,6 @@
+# Cloudflare Workers Environment Variables (.dev.vars)
+# Copy this file to .dev.vars for local development or set via `wrangler secret put <KEY>`
+
+TELEGRAM_TOKEN=your_telegram_bot_token_here
+ADMIN_ID=123456789
+GEMINI_KEYS=["your_gemini_api_key_1","your_gemini_api_key_2"]

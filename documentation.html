@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مستندات معماری و مهندسی سیستم ربات تحلیلگر یوتیوب</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  @page {
+    size: A4;
+    margin: 22mm 18mm 22mm 18mm;
+    @bottom-center {
+      content: counter(page);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9pt;
+      color: #71717a;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #fafafa;
+    color: #18181b;
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.95;
+    direction: rtl;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Main Document Container - Generous breathing room */
+  .document-container {
+    max-width: 860px;
+    margin: 40px auto;
+    background: #ffffff;
+    padding: 64px 56px;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  }
+
+  @media print {
+    body {
+      background: #ffffff;
+    }
+    .document-container {
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      border: none;
+      box-shadow: none;
+    }
+  }
+
+  /* Header Section - Minimalist & Authoritative */
+  .doc-header {
+    border-bottom: 1px solid #e4e4e7;
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+
+  .doc-meta-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    color: #71717a;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 20px;
+    letter-spacing: -0.2px;
+  }
+
+  .doc-tag {
+    background: #f4f4f5;
+    color: #27272a;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+    border: 1px solid #e4e4e7;
+  }
+
+  .doc-title {
+    font-size: 26px;
+    font-weight: 800;
+    color: #09090b;
+    margin: 0 0 12px 0;
+    letter-spacing: -0.5px;
+    line-height: 1.45;
+  }
+
+  .doc-subtitle {
+    font-size: 15px;
+    font-weight: 400;
+    color: #52525b;
+    margin: 0 0 24px 0;
+    line-height: 1.7;
+  }
+
+  .spec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 16px;
+    padding: 16px 20px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+
+  .spec-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .spec-label {
+    color: #64748b;
+    font-size: 11px;
+  }
+
+  .spec-value {
+    color: #0f172a;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', 'Vazirmatn', monospace;
+  }
+
+  /* Headings & Typography */
+  h1 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #09090b;
+    margin: 44px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e4e4e7;
+    page-break-after: avoid;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  h1::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 18px;
+    background-color: #2563eb;
+    border-radius: 2px;
+  }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #18181b;
+    margin: 28px 0 12px 0;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #27272a;
+    margin: 20px 0 8px 0;
+  }
+
+  p {
+    margin: 0 0 14px 0;
+    color: #27272a;
+    text-align: justify;
+    text-justify: inter-word;
+  }
+
+  ul, ol {
+    margin: 0 0 18px 0;
+    padding-right: 22px;
+    color: #27272a;
+  }
+
+  li {
+    margin-bottom: 7px;
+  }
+
+  /* Inline Code */
+  code {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 11.5px;
+    background: #f4f4f5;
+    color: #09090b;
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid #e4e4e7;
+    direction: ltr;
+    display: inline-block;
+  }
+
+  /* Code Blocks */
+  pre.code-block {
+    direction: ltr;
+    text-align: left;
+    background: #09090b;
+    color: #f4f4f5;
+    padding: 16px 20px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    overflow-x: auto;
+    margin: 16px 0 20px 0;
+    border: 1px solid #27272a;
+    page-break-inside: avoid;
+  }
+
+  /* Persian Prompts - Editorial Typography */
+  .prompt-container {
+    background: #fcfcfd;
+    border: 1px solid #e4e4e7;
+    border-right: 3.5px solid #4f46e5;
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 18px 0 24px 0;
+    page-break-inside: avoid;
+  }
+
+  .prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4338ca;
+  }
+
+  pre.prompt-text {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Vazirmatn', -apple-system, sans-serif;
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: #1e293b;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Minimalist Technical Callout */
+  .callout {
+    padding: 14px 18px;
+    border-radius: 6px;
+    margin: 16px 0 20px 0;
+    font-size: 12.5px;
+    line-height: 1.8;
+    page-break-inside: avoid;
+    border: 1px solid transparent;
+  }
+
+  .callout-note {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    border-right: 4px solid #475569;
+    color: #334155;
+  }
+
+  .callout-warning {
+    background: #fffbeb;
+    border-color: #fde68a;
+    border-right: 4px solid #d97706;
+    color: #92400e;
+  }
+
+  .callout-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: inherit;
+  }
+
+  /* Data & Technical Tables */
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 20px 0;
+    font-size: 12.5px;
+    border: 1px solid #e4e4e7;
+    border-radius: 6px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+
+  th {
+    background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    text-align: right;
+    padding: 11px 16px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  td {
+    padding: 11px 16px;
+    text-align: right;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: top;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:nth-child(even) td {
+    background-color: #fafbfc;
+  }
+
+  /* ASCII Architecture Diagram */
+  .architecture-diagram {
+    background: #09090b;
+    color: #38bdf8;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 20px 0 24px 0;
+    direction: ltr;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    border: 1px solid #27272a;
+    page-break-inside: avoid;
+  }
+</style>
+</head>
+<body>
+
+<div class="document-container">
+
+  <!-- Document Header -->
+  <header class="doc-header">
+    <div class="doc-meta-top">
+      <span>TECH-SPEC-2026-v2.1</span>
+      <span class="doc-tag">ARCHITECTURE & IMPLEMENTATION</span>
+      <span>OCTOBER 2026</span>
+    </div>
+    <h1 class="doc-title">مستندات معماری و مهندسی سیستم ربات تحلیلگر یوتیوب</h1>
+    <div class="doc-subtitle">
+      تشریح جامع بستر پردازش تمام‌ابری (Serverless)، چرخه استنتاج چندوجهی، ساختار پرامپت‌های پروداکشن، اقتصاد توکن‌ها و راهکارهای حل چالش‌های سیستمی.
+    </div>
+
+    <div class="spec-grid">
+      <div class="spec-item">
+        <span class="spec-label">محیط اجرا (Runtime):</span>
+        <span class="spec-value">Cloudflare Workers (V8)</span>
+      </div>
+      <div class="spec-item">
+        <span class="spec-label">موتور هوش مصنوعی:</span>
+        <span class="spec-value">Google Gemini Flash 2.5/3.5</span>
+      </div>
+      <div class="spec-item">
+        <span class="spec-label">پایگاه داده لبه (Storage):</span>
+        <span class="spec-value">Cloudflare Workers KV</span>
+      </div>
+      <div class="spec-item">
+        <span class="spec-label">رابط کاربری (Interface):</span>
+        <span class="spec-value">Telegram Bot API (HTML)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Section 1 -->
+  <h1>۱. معماری کلان سیستم و جریان تبادل داده (Architecture)</h1>
+  <p>
+    این سامانه مبتنی بر معماری نوین پردازش ابری لبه (Edge Computing) طراحی شده است. هیچ سرور اختصاصی سنتی درگیر نبوده و کل منطق برنامه به عنوان یک میکروتابع درون شبکه‌ای از ۳۳۰ نقطه حضور (PoP) در سراسر دنیا توزیع شده است. این رویکرد زمان آغاز به کار را به صفر رسانده و تاخیر شبکه را برای کاربران پیام‌رسان تلگرام به حداقل می‌رساند.
+  </p>
+
+  <div class="architecture-diagram">
++---------------------+       1. Webhook POST        +-----------------------------+
+|    Telegram User    | ---------------------------> |   Cloudflare Worker (Edge)  |
+| (Mobile/Desktop App)| <--------------------------- |    (youtube-analyzer-bot)   |
++---------------------+    8. Multi-Chunk Messages   +-----------------------------+
+                                                               |       ^           |
+                                 2. Read / Write Cache         |       |           |
+                                            +------------------+       |           |
+                                            v                          |           |
+                                +-----------------------+   3. Metadata|           |
+                                |  Cloudflare KV Store  |      Fetch   |           |
+                                |       (BOT_KV)        |              v           |
+                                +-----------------------+   +-------------------+  |
+                                                            | YouTube oEmbed/DOM|  |
+                                                            +-------------------+  |
+                                                                                   |
+                                                           4. Direct fileUri Stream|
+                                                                                   v
+                                                            +-----------------------------+
+                                                            |    Google Gemini 2.5/3.5    |
+                                                            |    (Generative Language API)|
+                                                            +-----------------------------+
+  </div>
+
+  <h2>چرخه حیات یک درخواست از آغاز تا تحویل (Request Pipeline)</h2>
+  <ol>
+    <li><strong>دریافت وب‌هوک و ارزیابی دسترسی:</strong> پیام ارسالی کاربر با متد <code>POST</code> وارد ورکر می‌شود. ابتدا شناسه تلگرام کاربر در پایگاه داده لبه با ساختار لیست سفید (Whitelist) اعتبارسنجی می‌شود.</li>
+    <li><strong>نرمال‌سازی پیوند:</strong> تابع <code>extractYouTubeUrl</code> شناسه ۱۱ کاراکتری اثر را از تمام ساختارهای استاندارد یوتیوب، پیوندهای کوتاه، ویدیوهای عمودی (Shorts) و آدرس‌های جاسازی‌شده تفکیک می‌کند.</li>
+    <li><strong>استخراج فراداده (Metadata Fetch):</strong> مشخصات عمومی از طریق <code>YouTube oEmbed</code> دریافت شده و طول دقیق به ثانیه از طریق پارس کردن متا‌تگ‌های صفحه یوتیوب واکشی می‌گردد.</li>
+    <li><strong>ارزیابی کش لبه (Edge Cache Hit):</strong> کلید <code>cache_{mode}_{videoId}</code> در دیتابیس KV بررسی می‌شود. در صورت ثبت قبلی، تحلیل ظرف ۳۰ میلی‌ثانیه بدون مصرف توکن به کاربر تحویل می‌گردد.</li>
+    <li><strong>ترکیب پرامپت و تثبیت زمانی:</strong> زمان دقیق اثر محاسبه شده و همراه با دستورالعمل‌های ضد توهم به قالب پرامپت تزریق می‌شود.</li>
+    <li><strong>فراخوانی چندوجهی جمنای:</strong> لینک ویدیو بدون نیاز به دانلود روی سرور، مستقیماً از طریق فیلد <code>fileData</code> برای پردازش همزمان تصویر و صوت تحویل داده می‌شود.</li>
+    <li><strong>پالایش HTML تلگرام:</strong> خروجی مدل پاکسازی شده و تایم‌استمپ‌های <code>[MM:SS]</code> به لینک‌های رسمی با قابلیت پرش به همان ثانیه ویدیو در یوتیوب تبدیل می‌شوند.</li>
+    <li><strong>قطعه‌بندی و تحویل نهایی:</strong> در صورت عبور طول متن از سقف مجاز تلگرام، محتوا به صورت پاراگراف‌بندی‌شده و پیوسته در چند پیام متوالی به کاربر ارسال می‌گردد.</li>
+  </ol>
+
+  <!-- Section 2 -->
+  <h1>۲. ارتباط با Google Gemini API و ساختار ورودی/خروجی</h1>
+
+  <p>
+    ارتباط با موتور هوش مصنوعی از طریق نقطه پایانی <code>v1beta/models/gemini-2.5-flash:generateContent</code> انجام می‌پذیرد. ساختار ارسال درخواست به صورت خام به شرح زیر است:
+  </p>
+
+  <pre class="code-block">{
+  "contents": [
+    {
+      "parts": [
+        {
+          "fileData": {
+            "fileUri": "https://www.youtube.com/watch?v=s1Xxxxxxx",
+            "mimeType": "video/*"
+          }
+        },
+        {
+          "text": "دستورالعمل کامل سیستم و پرامپت تحلیل به زبان فارسی..."
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "temperature": 0.3,
+    "topK": 40,
+    "topP": 0.95
+  }
+}</pre>
+
+  <h2>محاسبات ریاضی اقتصاد توکن‌ها (Token Economics)</h2>
+  <p>
+    طبق اسناد مهندسی Google AI Studio، پردازش مستقیم فایل‌های ویدیویی یوتیوب ترکیبی از دو جریان بصری و صوتی مجزاست:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 30%;">بخش رسانه‌ای</th>
+        <th style="width: 35%;">نرخ نمونه‌برداری</th>
+        <th style="width: 35%;">نرخ مصرف توکن ورودی</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>فریم‌های تصویر (Video Frames)</strong></td>
+        <td>۱ فریم بر ثانیه (1 FPS)</td>
+        <td>۱۰۰ الی ۲۶۳ توکن در هر ثانیه</td>
+      </tr>
+      <tr>
+        <td><strong>جریان صوتی (Audio Track)</strong></td>
+        <td>پیوسته (۱۶ کیلوهرتز)</td>
+        <td>۳۲ توکن در هر ثانیه</td>
+      </tr>
+      <tr>
+        <td><strong>مجموع متوسط نرخ ورودی</strong></td>
+        <td><strong>تصویر + صوت ترکیبی</strong></td>
+        <td><strong>۲۹۵ توکن در ثانیه (~۱۷٬۷۰۰ توکن در دقیقه)</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-warning">
+    <div class="callout-title">⚠️ علت فنی خطای توقف در دقیقه ۱۵ در پلن استاندارد گوگل:</div>
+    پلن رایگان Google AI Studio دارای سقف ۲۵۰٬۰۰۰ توکن در دقیقه (TPM) است. یک ویدیوی ۱۴ دقیقه‌ای حدود ۲۴۸٬۰۰۰ توکن مصرف می‌کند. بنابراین در دقیقه ۱۵ سقف سهمیه پر شده و خطای <code>HTTP 429 (ResourceExhausted)</code> رخ می‌دهد.
+  </div>
+
+  <!-- Section 3 -->
+  <h1>۳. متن دقیق پرامپت‌های تولیدی در پروداکشن (Production Prompts)</h1>
+  <p>
+    پرامپت‌های این سامانه حاصل مهندسی دقیق معکوس برای به حداقل رساندن توهم هوش مصنوعی (Zero Hallucination)، واقع‌گرایی مطلق و جلوگیری از ربط دادن ویدیوهای عجیب به اخبار نامربوط است.
+  </p>
+
+  <h2>حالت اول: خلاصه کوتاه و سریع (Quick Mode)</h2>
+  <div class="prompt-container">
+    <div class="prompt-header">
+      <span>حالت خلاصه‌سازی سریع و فشرده</span>
+      <span>Prompt Mode: Quick</span>
+    </div>
+    <pre class="prompt-text">شما یک دستیار هوشمند و تیزبین محتوای یوتیوب هستید.
+مشخصات ویدیو:
+عنوان: "${meta.title}"
+سازنده / کانال: "${meta.author || "نامشخص"}"
+${durationSec > 0 ? `مدت زمان کل ویدیو: ${durationFormatted} (${durationMinutes} دقیقه)` : ""}
+${meta.description ? `توضیحات سازنده: "${meta.description.substring(0, 400)}"` : ""}
+آدرس: ${ytUrl}
+
+وظیفه شما: ارائه یک «خلاصه کوتاه، سریع، تمیز و بدون حاشیه» از این ویدیو به زبان فارسی.
+هدف: کاربر می‌خواهد سریعاً و در عرض چند ثانیه متوجه شود:
+۱. این محتوا اصلاً چیه؟
+۲. در این ویدیو توش چیا میگه و چه اتفاقاتی می‌افتد؟
+
+دستورالعمل‌ها و قوانین حیاتی (ضد توهم و واقع‌گرایی مطلق):
+۱. تحلیل باید ۱۰۰٪ بر اساس مشخصات واقعی، عنوان و توضیحات این اثر باشد.
+۲. اکیداً ممنوع: هرگز محتوای ویدیوهای خارجی، میم‌ها، کلیپ‌های سوررئال/دارک، هنر اینترنتی یا ویدیوهای عجیب با عروسک/ماسک (مانند آثار Shaye Saint John، Blank Room Soup، کریپی‌پاستاها، موزیک‌ویدیوها، انیمیشن‌ها) را به مسائل سیاسی، اقتصادی، پادکست‌های اجتماعی یا اخبار ایران نسبت ندهید!
+۳. اگر ویدیو یک اثر سوررئال، میم اینترنتی، کلیپ وحشت/دارک، انیمیشن عجیب، بی‌کلام یا هنر تجربی است، با صراحت دقیقاً همان ماهیت واقعی را بیان کنید و هرگز سناریوی خیالی نسازید.
+۴. به هیچ عنوان به کاربر توصیه، پند یا نصیحت نکنید (هیچ پیشنهادی برای تماشا یا عدم تماشا ندهید).
+۵. کوتاه، فشرده و تر و تمیز باشد (بدون مقدمه‌چینی و گزافه‌گویی).
+۶. از هیچ‌گونه علامت هدر مارک‌داون مانند ### یا ## یا خطوط --- استفاده نکنید.
+۷. هر بخش را با ایموجی متناسب و متن بولد آغاز کنید.
+
+ساختار الزامی خروجی:
+📌 موضوع و ماهیت ویدیو:
+(یک جمله صریح و شفاف که این ویدیو دقیقاً چیه)
+
+📝 خلاصه محتوا و ماجرا:
+(چند خط شسته و رفته درباره اینکه در ویدیو توش چیا میگه و چه اتفاقاتی می‌افتد)
+
+💡 کلام آخر و پیام محوری:
+(یک جمله پایانی درباره لب کلام یا جایگاه اثر)</pre>
+  </div>
+
+  <h2>حالت دوم: شرح صحنه‌به‌صحنه همراه با تایم‌استمپ (Description Mode)</h2>
+  <div class="prompt-container">
+    <div class="prompt-header">
+      <span>حالت شرح روایی و زمانی</span>
+      <span>Prompt Mode: Description (Timeline Grounded)</span>
+    </div>
+    <pre class="prompt-text">شما یک دستیار هوشمند، دقیق و تیزبین هستید.
+مشخصات ویدیو:
+عنوان: "${meta.title}"
+سازنده / کانال: "${meta.author || "نامشخص"}"
+${meta.description ? `توضیحات سازنده: "${meta.description.substring(0, 400)}"` : ""}
+آدرس ویدیو: https://www.youtube.com/watch?v=${videoId}
+
+مدت زمان کامل این اثر: ${durationFormatted} (حدود ${durationMinutes} دقیقه) است.
+
+قانون بسیار حیاتی و الزامی توزیع زمانی (پوشش کامل از ابتدا تا انتها):
+۱. شما موظف هستید رویدادها و مباحث ویدیو را در سرتاسر کل طول اثر (از نقطه شروع [00:00] تا ثانیه‌های پایانی نزدیک به [${durationFormatted}]) به صورت کاملاً متوازن و پیوسته روایت کنید.
+۲. اکیداً نباید فقط به ۱۰ یا ۱۵ دقیقه ابتدایی اکتفا کنید یا ویدیو را در میانه کار رها کنید!
+۳. بخش‌های ویدیو را در طول کل زمان اثر پخش کنید: رخدادهای ابتدا، یک‌چهارم اول، نیمه ویدیو، سه‌چهارم ویدیو و دقایق پایانی اثر را به ترتیب بنویسید تا مخاطب رویدادهای تمام ${durationMinutes} دقیقه را به صورت کامل و مستند درک کند.
+
+وظیفه شما: ارائه «شرح و روایت دقیق رویدادهای ویدیو» به زبان فارسی بر اساس رخدادهای واقعی داخل ویدیو.
+
+سبک نگارش و قالب الزامی:
+- یک جمله کوتاه معرفی در ابتدا (شامل عنوان، کانال و حال‌وهوای کلی اثر).
+- خط بعد: "در ادامه خلاصه و شرح بخش‌های مهم این ویدیو آورده شده است:"
+- سپس هر بخش کلیدی در یک پاراگراف روان و داستانی با این فرمت:
+**عنوان توصیفی بخش:** شرح اتفاقات، کنش‌ها، دیالوگ‌ها و رویدادها همراه با درج تایم‌استمپ دقیق به صورت [MM:SS] در پایان هر رویداد، تغییر صحنه یا دیالوگ.
+
+قوانین حیاتی (ضد توهم و واقع‌گرایی مطلق):
+۱. تمام گزارش باید ۱۰۰٪ عینی، مستند و بر اساس رخدادها، دیالوگ‌ها و تصاویر واقعی ویدیو باشد (صفر درصد توهم یا سناریوی خیالی).
+۲. هرگز محتوای ویدیوهای خارجی، میم‌ها یا هنر دیجیتال را به مسائل سیاسی/اجتماعی نامربوط تعمیم ندهید.
+۳. تایم‌استمپ‌ها حتماً درون قلاب [MM:SS] نوشته شوند تا به صورت خودکار به لینک کلیک‌پذیر تبدیل شوند.
+۴. از علامت‌های هدر مارک‌داون مانند ### یا خطوط افقی --- استفاده نکنید.</pre>
+  </div>
+
+  <h2>حالت سوم: تحلیل کامل و استدلال زنجیره‌ای (Full Analysis Mode)</h2>
+  <div class="prompt-container">
+    <div class="prompt-header">
+      <span>حالت تحلیل جامع با Chain of Thought</span>
+      <span>Prompt Mode: Full Analysis</span>
+    </div>
+    <pre class="prompt-text">شما یک تحلیلگر دقیق، مسلط و واقع‌گرای محتوای یوتیوب هستید.
+مشخصات ویدیو:
+عنوان: "${meta.title}"
+سازنده / کانال: "${meta.author || "نامشخص"}"
+${meta.description ? `توضیحات سازنده: "${meta.description.substring(0, 400)}"` : ""}
+آدرس: ${ytUrl}
+
+دستورالعمل پوشش زمانی: در بخش «شرح کامل مباحث و اتفاقات ویدیو»، مباحث و رویدادها را در سرتاسر کل طول اثر (از شروع تا نقطه پایانی نزدیک به ${durationFormatted}) پوشش دهید.
+
+وظیفه شما: ارائه یک تحلیل کامل، جامع و شیوا از این ویدیو به زبان فارسی.
+
+دستورالعمل‌ها و قوانین حیاتی:
+۱. فرآیند استدلال گام‌به‌گام (Chain of Thought) خود را در ابتدای پاسخ منعکس کنید.
+۲. بالت‌پوینت‌ها را حتماً در یک سطر جدید با علامت ▫️ بنویسید.
+۳. از هیچ‌گونه علامت هدر مانند ### یا خطوط --- استفاده نکنید.
+۴. هر بخش را با ایموجی متناسب و متن بولد آغاز کنید.
+
+ساختار الزامی خروجی:
+
+🧠 استدلال و تحلیل گام‌به‌گام (Chain of Thought):
+▫️ تشخیص ماهیت و ژانر: (قالب و سبک دقیق اثر؛ آموزشی، موزیک‌ویدیو، سوررئال/هنر تجربی، میم، گیمینگ، ولاگ و...)
+▫️ راستی‌آزمایی محتوا: (بررسی فکت‌های موثق بر اساس عنوان و شناسنامه اثر، پرهیز از فرضیات نامربوط)
+▫️ نگاه واقع‌بینانه: (بررسی محتوا بدون اغراق یا تعارف)
+
+🎯 موضوع و محور اصلی:
+(ویدیو کلاً چیه و چه موضوعی را دنبال می‌کند در ۱ یا ۲ جمله)
+
+📝 شرح کامل مباحث و اتفاقات ویدیو:
+(توش چیا میگه؟ تمام اتفاقات، دیالوگ‌ها یا نماهای اثر به ترتیب، کامل و روان)
+
+🔍 نکات و جزئیات مهم مطرح‌شده:
+(نکات بارز اثر متناسب با سبک آن با علامت ▫️)
+
+👥 مخاطبان و جایگاه اثر:
+(این اثر برای چه افرادی ساخته شده و چه جایگاهی دارد با علامت ▫️)</pre>
+  </div>
+
+  <!-- Section 4 -->
+  <h1>۴. ماتریس مهندسی و حل چالش‌های فنی (Engineering Matrix)</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 22%;">عنوان چالش</th>
+        <th style="width: 38%;">ریشه و علت فنی</th>
+        <th style="width: 40%;">راهکار پیاده‌سازی شده در ربات</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>۱. توقف تحلیل در دقیقه ۱۵</strong></td>
+        <td><strong>Front-Loading Bias:</strong> مدل‌های زبانی تمام بودجه پاسخ را صرف دقایق ابتدایی می‌کردند. همچنین ویدیوهای بالای ۴۰ دقیقه به متن سوئیچ می‌شدند.</td>
+        <td><strong>تکنیک Duration Grounding:</strong> تزریق طول ویدیو به دقیقه و ثانیه، اجبار به پوشش متوازن از <code>[00:00]</code> تا انتها، و افزایش آستانه ویدیو به ۵۰ دقیقه.</td>
+      </tr>
+      <tr>
+        <td><strong>۲. سقف ۴۰۹۶ کاراکتری تلگرام</strong></td>
+        <td>تلگرام خطای <code>MESSAGE_TOO_LONG</code> بازمی‌گرداند. برش ساده با <code>substring</code> نیمی از تحلیل را کاملاً حذف می‌کرد.</td>
+        <td><strong>الگوریتم <code>splitTextChunks(3900)</code>:</strong> شکستن اولویت‌دار بر اساس پاراگراف (<code>\n\n</code>)، خط (<code>\n</code>) و جمله بدون بریدن کلمات و ارسال زنجیره‌ای.</td>
+      </tr>
+      <tr>
+        <td><strong>۳. سقف ۲۵۰ هزار TPM گوگل</strong></td>
+        <td>ورودی ۲۹۵ توکن در ثانیه در دقیقه ۱۴ سقف Free Tier را رد کرده و خطای <code>HTTP 429</code> صادر می‌کرد.</td>
+        <td><strong>استخر چرخش کلیدها (Multi-Key Failover):</strong> سوئیچ آنی به کلید جایگزین بدون وقفه برای کاربر و پایش روزانه سهمیه در دیتابیس KV.</td>
+      </tr>
+      <tr>
+        <td><strong>۴. خطاهای Parse Mode تلگرام</strong></td>
+        <td>وجود کاراکترهای خام <code>&lt;</code> یا <code>&gt;</code> یا تگ‌های نامعتبر HTML که مانع از تحویل پیام می‌شدند.</td>
+        <td><strong>پایپ‌لاین پالایش <code>formatTelegramHtml</code>:</strong> فراردهی اولیه با <code>escapeHtml</code> و بهره‌گیری از کادر تاشونده مدرن <code>&lt;blockquote expandable&gt;</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>۵. غیرفعال بودن تایم‌استمپ‌ها</strong></td>
+        <td>تایم‌استمپ‌های متنی عادی در تلگرام قابلیت پرش به دقیقه مشخص در ویدیوی یوتیوب را ندارند.</td>
+        <td><strong>الگوریتم <code>linkTimestamps</code>:</strong> تبدیل <code>[MM:SS]</code> به ثانیه کل و تولید تگ استاندارد <code>&lt;a href="https://youtu.be/ID?t=sec"&gt;</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>۶. درخواست‌های تکراری و هزینه مضاعف</strong></td>
+        <td>ارسال مجدد لینک موجب فراخوانی دوباره هوش مصنوعی و اتلاف سهمیه و تاخیر ۱۰ ثانیه‌ای می‌شد.</td>
+        <td><strong>پایگاه داده لبه (Cloudflare KV Caching):</strong> ذخیره خروجی ۳۰ روزه با کلید <code>cache_{mode}_{videoId}</code> و تحویل زیر ۵۰ میلی‌ثانیه با صفر توکن.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 5 -->
+  <h1>۵. معماری پایگاه داده لبه (Workers KV Schema)</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 32%;">کلید در KV</th>
+        <th style="width: 23%;">طول عمر (TTL)</th>
+        <th style="width: 45%;">توضیحات و عملکرد</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>cache_{mode}_{videoId}</code></td>
+        <td>۳۰ روز (۲٬۵۹۲٬۰۰۰ ثانیه)</td>
+        <td>متن پردازش‌شده HTML، متادیتا و نام مدل جهت سرو آنی در درخواست‌های بعدی</td>
+      </tr>
+      <tr>
+        <td><code>whitelist_user_{id}</code></td>
+        <td>دائمی</td>
+        <td>رکورد دسترسی، نام، نام‌کاربری و تاریخ تایید عضویت کاربر</td>
+      </tr>
+      <tr>
+        <td><code>stats_daily_{date}_{keyIndex}</code></td>
+        <td>۷ روز</td>
+        <td>شمارنده درخواست‌های ارسالی هر کلید جمنای در تاریخ مشخص</td>
+      </tr>
+      <tr>
+        <td><code>logs_system</code></td>
+        <td>دائمی (حلقه ۵۰ تایی)</td>
+        <td>تاریخچه لاگ‌های خطایابی، قطعی کلیدها و رویدادهای سیستمی</td>
+      </tr>
+      <tr>
+        <td><code>setting_donate_text</code></td>
+        <td>دائمی</td>
+        <td>آدرس پیوند دونیت و حمایت مالی تعیین‌شده توسط ادمین</td>
+      </tr>
+    </tbody>
+  </table>
+
+</div>
+
+</body>
+</html>

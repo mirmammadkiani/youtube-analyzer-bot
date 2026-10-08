@@ -1,0 +1,7 @@
+name = "youtube-analyzer-bot"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "BOT_KV"
+id = "166d890ca7ae4ccd826192259595e026"
