@@ -661,7 +661,7 @@ async function executeGeminiRequest(prompt, env = null) {
         const res = await fetch(`${endpoint}?key=${apiKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(5000), // مهلت حداکثر ۵ ثانیه
+          signal: AbortSignal.timeout(18000), // مهلت ۱۸ ثانیه برای استخراج و نگارش کامل تحلیل
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -723,62 +723,55 @@ async function executeGeminiRequest(prompt, env = null) {
 }
 
 async function callGemini(prompt, env = null, videoUrl = null) {
-  // اگر ویدیو مجاز به ورودی ویدیویی مستقیم باشد، هوش مصنوعی کل فریم‌ها و صدای ویدیو را تحلیل می‌کند
+  // اگر ویدیو مجاز به ورودی ویدیویی مستقیم باشد، هوش مصنوعی فریم‌ها و صدای ویدیو را تحلیل می‌کند
   if (videoUrl) {
     const model = "gemini-3.5-flash-lite";
-    for (let i = 0; i < GEMINI_KEYS.length; i++) {
-      const apiKey = GEMINI_KEYS[i];
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(8500),
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                { fileData: { mimeType: "video/mp4", fileUri: videoUrl } }
-              ]
-            }],
-            generationConfig: {
-              temperature: 0.20,
-              maxOutputTokens: 3500,
-            },
-            safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-            ],
-          }),
-        });
+    // فقط با کلید اول با مهلت معقول تست می‌شود؛ در صورت سنگینی یا تایم‌اوت، فوراً به موتور متنی سوئیچ می‌شود تا معطلی چندبرابره ایجاد نشود
+    const apiKey = GEMINI_KEYS[0];
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15000), // مهلت حداکثر ۱۵ ثانیه برای تحلیل ویدیویی
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { fileData: { mimeType: "video/mp4", fileUri: videoUrl } }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.20,
+            maxOutputTokens: 3500,
+          },
+          safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          ],
+        }),
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
-          if (text.trim()) {
-            if (env) await recordKeyUsage(env, i + 1, model);
-            return {
-              text: text.trim(),
-              model: MODEL_LABELS[model] || model,
-              keyIndex: i + 1,
-            };
-          }
+      if (res.ok) {
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+        if (text.trim()) {
+          if (env) await recordKeyUsage(env, 1, model);
+          return {
+            text: text.trim(),
+            model: MODEL_LABELS[model] || model,
+            keyIndex: 1,
+          };
         }
-
-        // اگر خطای محدودیت حجم توکن ویدیو (429) بود، یعنی ویدیو بیش از حد طولانی است؛
-        // بلافاصله از حلقه خارج می‌شویم تا سایر کلیدها وقت تلف نکنند و سریعاً به موتور متنی سوئیچ شود
-        if (res.status === 429) {
-          break;
-        }
-      } catch (err) {
-        // ادامه تلاش یا فال‌بک به متن
       }
+    } catch (err) {
+      // در صورت تایم‌اوت یا خطای پردازش مستقیم ویدیویی، بلافاصله به تحلیل متنی سریع سوئیچ می‌شود
     }
   }
 
-  // اجرای درخواست متنی سریع و سبک
+  // اجرای درخواست سریع و سبک
   try {
     return await executeGeminiRequest(prompt, env);
   } catch (err) {
