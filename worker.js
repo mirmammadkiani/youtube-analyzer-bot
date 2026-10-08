@@ -373,30 +373,45 @@ async function getQuotaReport(env) {
 }
 
 async function testKeysHealth() {
-  const results = [];
-  const testModel = GEMINI_MODELS[0]; // gemini-3.5-flash-lite
+  const promises = GEMINI_KEYS.map(async (key, i) => {
+    // ابتدا با مدل فوق‌سریع ۳.۵ تست می‌شود و در صورت ترافیک بالا (۵۰۳)، به ۳.۱ سوئیچ می‌شود
+    const modelsToTry = [GEMINI_MODELS[0], GEMINI_MODELS[1]];
+    let lastErr = null;
 
-  for (let i = 0; i < GEMINI_KEYS.length; i++) {
-    const key = GEMINI_KEYS[i];
-    const start = Date.now();
-    try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${key}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(6000),
-        body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
-      });
-      const latency = Date.now() - start;
-      if (res.ok) {
-        results.push(`✅ <b>کلید ${i + 1}:</b> متصل و سالم (پاسخ: ${latency} میلی‌ثانیه)`);
-      } else {
+    for (const testModel of modelsToTry) {
+      const start = Date.now();
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${key}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(12000),
+          body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+        });
+        const latency = Date.now() - start;
+
+        if (res.ok) {
+          const modelTag = testModel === GEMINI_MODELS[0] ? "3.5 Lite" : "3.1 Lite (پشتیبان)";
+          return `✅ <b>کلید ${i + 1}:</b> متصل و سالم (مدل ${modelTag} - پاسخ: ${latency}ms)`;
+        }
+
         const d = await res.json().catch(() => ({}));
-        results.push(`⚠️ <b>کلید ${i + 1}:</b> خطا (${res.status}) - ${escapeHtml(d?.error?.message || "نامشخص")}`);
+        const errMsg = d?.error?.message || "نامشخص";
+        // اگر خطای ترافیک بالا (503) بود، مدل بعدی تست شود
+        if (res.status === 503) {
+          lastErr = `ترافیک موقت سرورهای گوگل (503)`;
+          continue;
+        }
+        return `⚠️ <b>کلید ${i + 1}:</b> خطا (${res.status}) - ${escapeHtml(errMsg)}`;
+      } catch (e) {
+        lastErr = e.name === "TimeoutError" || e.message?.includes("timeout")
+          ? "تایم‌اوت موقت شبکه"
+          : e.message;
       }
-    } catch (e) {
-      results.push(`❌ <b>کلید ${i + 1}:</b> قطعی یا تایم‌اوت (${e.message})`);
     }
-  }
+    return `❌ <b>کلید ${i + 1}:</b> قطعی یا تایم‌اوت (${lastErr})`;
+  });
+
+  const results = await Promise.all(promises);
   return results.join("\n");
 }
 
