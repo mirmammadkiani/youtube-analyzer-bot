@@ -141,6 +141,7 @@ async function getUserStats(env, userId) {
       userId,
       name: "بدون سابقه",
       totalCount: 0,
+      startCount: 0,
       lastUsed: "هنوز استفاده نکرده",
       history: [],
     };
@@ -148,7 +149,7 @@ async function getUserStats(env, userId) {
   try {
     return JSON.parse(raw);
   } catch {
-    return { userId, name: "نامشخص", totalCount: 0, lastUsed: null, history: [] };
+    return { userId, name: "نامشخص", totalCount: 0, startCount: 0, lastUsed: null, history: [] };
   }
 }
 
@@ -167,6 +168,8 @@ async function ensureUserProfile(env, userId, userName, userUsername) {
         name: userName || "نامشخص",
         username: userUsername || null,
         totalCount: 0,
+        startCount: 0,
+        firstSeen: new Date().toISOString(),
         lastUsed: null,
         history: [],
       };
@@ -181,8 +184,105 @@ async function ensureUserProfile(env, userId, userName, userUsername) {
         data.username = userUsername;
         changed = true;
       }
+      if (!data.firstSeen) {
+        data.firstSeen = new Date().toISOString();
+        changed = true;
+      }
       if (changed) {
         await env.BOT_KV.put(key, JSON.stringify(data));
+      }
+    }
+  } catch {}
+}
+
+// دریافت تعداد کل استارت‌های ربات
+async function getTotalStarts(env) {
+  try {
+    const val = await env.BOT_KV.get("total_starts");
+    return parseInt(val || "0", 10);
+  } catch {
+    return 0;
+  }
+}
+
+// دریافت استارت‌های امروز
+async function getTodayStarts(env) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const val = await env.BOT_KV.get(`starts_${today}`);
+    return parseInt(val || "0", 10);
+  } catch {
+    return 0;
+  }
+}
+
+// ثبت استارت ربات توسط کاربر
+async function recordBotStart(env, userId, userName, userUsername) {
+  try {
+    const total = await getTotalStarts(env);
+    await env.BOT_KV.put("total_starts", String(total + 1));
+
+    const today = new Date().toISOString().slice(0, 10);
+    const todayStarts = await getTodayStarts(env);
+    await env.BOT_KV.put(`starts_${today}`, String(todayStarts + 1), { expirationTtl: 604800 });
+
+    const key = `stats_${userId}`;
+    const raw = await env.BOT_KV.get(key);
+    let data = null;
+    if (raw) {
+      try { data = JSON.parse(raw); } catch {}
+    }
+    if (!data) {
+      data = {
+        userId,
+        name: userName || "نامشخص",
+        username: userUsername || null,
+        totalCount: 0,
+        startCount: 1,
+        firstSeen: new Date().toISOString(),
+        lastUsed: null,
+        history: [],
+      };
+    } else {
+      data.startCount = (data.startCount || 0) + 1;
+      if (!data.firstSeen) data.firstSeen = new Date().toISOString();
+      if (userName && (!data.name || data.name === "نامشخص" || data.name === "بدون سابقه" || data.name === "کاربر تلگرام")) {
+        data.name = userName;
+      }
+      if (userUsername && !data.username) {
+        data.username = userUsername;
+      }
+    }
+    await env.BOT_KV.put(key, JSON.stringify(data));
+  } catch {}
+}
+
+// دریافت و مدیریت کاربران مسدودکننده (بلاک)
+async function getBlockedUsers(env) {
+  try {
+    const raw = await env.BOT_KV.get("blocked_users");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function markUserBlocked(env, userId, isBlocked = true) {
+  try {
+    const raw = await env.BOT_KV.get("blocked_users");
+    let blocked = [];
+    if (raw) {
+      try { blocked = JSON.parse(raw); } catch {}
+    }
+    if (isBlocked) {
+      if (!blocked.includes(userId)) {
+        blocked.push(userId);
+        await env.BOT_KV.put("blocked_users", JSON.stringify(blocked));
+      }
+    } else {
+      if (blocked.includes(userId)) {
+        blocked = blocked.filter((id) => id !== userId);
+        await env.BOT_KV.put("blocked_users", JSON.stringify(blocked));
       }
     }
   } catch {}
@@ -244,15 +344,27 @@ async function addSystemLog(env, type, message, details = {}) {
   if (type === "ERROR") {
     try {
       const timeStr = new Date().toLocaleTimeString("fa-IR");
-      let errAlert = `🚨 <b>گزارش خطای سیستم (لاگ اختصاصی ادمین):</b>\n\n` +
-        `⏱ زمان: <code>${timeStr}</code>\n` +
+      let errAlert = details.isGoogleAi
+        ? `🚨 <b>هشدار خطای بحرانی Google Gemini API:</b>\n\n`
+        : `🚨 <b>گزارش خطای سیستم (لاگ اختصاصی ادمین):</b>\n\n`;
+
+      errAlert += `⏱ زمان: <code>${timeStr}</code>\n` +
         `📌 رخداد: <b>${escapeHtml(logEntry.message)}</b>\n`;
 
       if (details.userId) {
         errAlert += `👤 شناسه کاربر: <code>${details.userId}</code>\n`;
       }
+      if (details.videoId) {
+        errAlert += `🎬 شناسه ویدیو: <code>${details.videoId}</code>\n`;
+      }
+      if (details.mode) {
+        errAlert += `⚙️ حالت پردازش: <code>${details.mode}</code>\n`;
+      }
+      if (details.model) {
+        errAlert += `🤖 مدل هوش مصنوعی: <code>${details.model}</code>\n`;
+      }
       if (details.error) {
-        errAlert += `❌ متن خطا:\n<pre>${escapeHtml(String(details.error).substring(0, 500))}</pre>`;
+        errAlert += `❌ متن خطا:\n<pre>${escapeHtml(String(details.error).substring(0, 600))}</pre>`;
       }
 
       await sendMessage(ADMIN_ID, errAlert);
@@ -1371,11 +1483,17 @@ async function sendUserCard(chatId, targetId, env, editMsgId = null, fromPage = 
   const stats = await getOrFetchUserInfo(env, targetId);
   const users = await getAllowedUsers(env);
   const isMem = users.includes(targetId);
+  const blockedUsers = await getBlockedUsers(env);
+  const isBlocked = blockedUsers.includes(targetId);
 
   const nameDisplay = escapeHtml(stats.name && stats.name !== "بدون سابقه" && stats.name !== "نامشخص" ? stats.name : "کاربر تلگرام");
   const usernameStr = stats.username ? `@${escapeHtml(stats.username)}` : "ندارد (حساب شخصی بدون یوزرنیم)";
-  const statusStr = targetId === ADMIN_ID ? "👑 ادمین اصلی" : isMem ? "✅ عضو مجاز" : "❌ نامجاز / لغو دسترسی";
+  let statusStr = targetId === ADMIN_ID ? "👑 ادمین اصلی" : isMem ? "✅ عضو مجاز" : "❌ نامجاز / لغو دسترسی";
+  if (isBlocked) {
+    statusStr += " | 🚫 ربات را مسدود (بلاک) کرده";
+  }
   const lastUsedStr = stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده";
+  const firstSeenStr = stats.firstSeen ? new Date(stats.firstSeen).toLocaleDateString("fa-IR") : "نامشخص";
 
   let bioStr = "";
   if (stats.bio) {
@@ -1388,7 +1506,9 @@ async function sendUserCard(chatId, targetId, env, editMsgId = null, fromPage = 
     `▫️ یوزرنیم: <b>${usernameStr}</b>\n` +
     `▫️ شناسه عددی (ID): <code>${targetId}</code>\n` +
     `▫️ وضعیت دسترسی: <b>${statusStr}</b>\n` +
+    `▫️ دفعات استارت ربات: <b>${stats.startCount || 0}</b> بار\n` +
     `▫️ تعداد کل تحلیل‌ها: <b>${stats.totalCount || 0}</b> بار\n` +
+    `▫️ تاریخ اولین عضویت: <b>${firstSeenStr}</b>\n` +
     `▫️ آخرین فعالیت: <b>${lastUsedStr}</b>\n` +
     bioStr +
     `\n<i>💡 حتی اگر این کاربر یوزرنیم نداشته باشد یا پی‌وی او بسته باشد، با زدن دکمه «ارسال پیام مستقیم» ربات فوراً پیام شما را در چت ربات به او تحویل می‌دهد.</i>`;
@@ -1427,6 +1547,9 @@ async function handleUpdate(update, env) {
     const chatId = cb.message.chat.id;
     const msgId = cb.message.message_id;
     const data = cb.data;
+
+    // ثبت کاربر به عنوان فعال و رفع انسداد در صورت فعالیت مجدد
+    await markUserBlocked(env, userId, false);
 
     // دکمه خنثی / بدون عمل
     if (data === "noop") {
@@ -1624,17 +1747,47 @@ async function handleUpdate(update, env) {
           await sendMessage(chatId, fullText.substring(0, 4000), { reply_markup: finishButtons });
         }
       } catch (err) {
-        await addSystemLog(env, "ERROR", `خطا در پردازش ویدیو برای کاربر ${userId}`, {
-          userId,
-          error: err.message,
-        });
+        const isGoogleAi =
+          !err.message?.includes("اطلاعات ویدیو یافت نشد") &&
+          !err.message?.includes("در دسترس نیست") &&
+          !err.message?.includes("مدت زمان ویدیو") &&
+          !err.message?.includes("یوتیوب نامعتبر");
 
-        const errText = `❌ <b>خطا در پردازش ویدیو:</b>\n<code>${escapeHtml(err.message)}</code>\n\nلطفاً چند ثانیه دیگر دوباره امتحان کنید.`;
+        await addSystemLog(
+          env,
+          "ERROR",
+          isGoogleAi
+            ? `خطای سرویس Google Gemini API در پردازش ویدیو برای کاربر ${userId}`
+            : `خطا در پردازش ویدیو برای کاربر ${userId}`,
+          {
+            userId,
+            videoId,
+            mode,
+            isGoogleAi,
+            error: err.message,
+          }
+        );
+
+        let errText;
+        if (isGoogleAi) {
+          errText =
+            `🙏 <b>کاربر گرامی، با پوزش و عذرخواهی فراوان:</b>\n\n` +
+            `متأسفانه در حال حاضر سرویس هوش مصنوعی گوگل (Google Gemini API) با اختلال موقت مواجه شد و پردازش این ویدیو ناموفق بود.\n\n` +
+            `🔔 <b>این اختلال بلافاصله به مدیر فنی ربات گزارش داده شد</b> تا مشکل بررسی و برطرف گردد.\n` +
+            `✨ سهمیه شما محفوظ است و کسر نگردید.\n\n` +
+            `می‌توانید چند ثانیه دیگر با فشردن دکمه «تلاش مجدد» دوباره امتحان کنید:`;
+        } else {
+          errText = `❌ <b>خطا در پردازش ویدیو:</b>\n<code>${escapeHtml(err.message)}</code>\n\nلطفاً چند ثانیه دیگر دوباره امتحان کنید.`;
+        }
+
         const errMarkup = {
           reply_markup: {
             inline_keyboard: [
               [{ text: "🔄 تلاش مجدد", callback_data: `act_${mode}_${videoId}` }],
-              [{ text: "🔙 منوی اصلی", callback_data: "main_menu" }],
+              [
+                { text: "💬 تماس با پشتیبانی", callback_data: "user_support" },
+                { text: "🔙 منوی اصلی", callback_data: "main_menu" },
+              ],
             ],
           },
         };
@@ -1690,18 +1843,22 @@ async function handleUpdate(update, env) {
           `📊 وضعیت حساب شما:\n\n` +
           `👤 شناسه کاربری: ${userId}\n` +
           `🎖 سطح دسترسی: ${isAdm ? "👑 ادمین اصلی" : "✅ کاربر مجاز"}\n` +
-          `📈 تعداد کل آنالیزها: ${stats.totalCount} بار\n` +
+          `🚀 دفعات استارت ربات: ${stats.startCount || 0} بار\n` +
+          `📈 تعداد کل آنالیزها: ${stats.totalCount || 0} بار\n` +
           `⏱ آخرین استفاده: ${stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده"}`;
         await answerCallback(cb.id, alertText, true);
         return;
       }
 
       await answerCallback(cb.id);
+      const firstSeenStr = stats.firstSeen ? new Date(stats.firstSeen).toLocaleDateString("fa-IR") : "نامشخص";
       const statusText = `📊 <b>وضعیت حساب شما:</b>\n\n` +
         `👤 شناسه کاربری: <code>${userId}</code>\n` +
         `🎖 سطح دسترسی: ${isAdm ? "👑 ادمین اصلی" : "✅ کاربر مجاز"}\n` +
-        `📈 تعداد کل آنالیزها: <b>${stats.totalCount}</b> بار\n` +
-        `⏱ آخرین استفاده: ${stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده"}`;
+        `🚀 دفعات استارت ربات: <b>${stats.startCount || 0}</b> بار\n` +
+        `📈 تعداد کل آنالیزها: <b>${stats.totalCount || 0}</b> بار\n` +
+        `📅 تاریخ اولین عضویت: <b>${firstSeenStr}</b>\n` +
+        `⏱ آخرین فعالیت: <b>${stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده"}</b>`;
       await editMessage(chatId, msgId, statusText, {
         reply_markup: {
           inline_keyboard: [[{ text: "🔙 بازگشت", callback_data: "main_menu" }]],
@@ -1852,13 +2009,18 @@ async function handleUpdate(update, env) {
       const regOpen = await isRegistrationOpen(env);
       const donateLink = await getDonateLink(env);
       const users = await getAllowedUsers(env);
+      const totalStarts = await getTotalStarts(env);
+      const todayStarts = await getTodayStarts(env);
+      const blockedUsers = await getBlockedUsers(env);
 
       const panelText =
         `⚙️ <b>پنل جامع مدیریت ربات یوتیوب</b>\n\n` +
-        `📊 <b>وضعیت کلی سیستم:</b>\n` +
+        `📊 <b>وضعیت کلی سیستم و کاربران:</b>\n` +
         `• 🛡 تایید عضویت: <b>${wlOn ? "روشن ✅ (نیاز به تایید دستی)" : "خاموش ❌ (آزاد و تایید خودکار)"}</b>\n` +
         `• 🚪 وضعیت عضوگیری: <b>${regOpen ? "باز 🟢 (پذیرش عضو جدید)" : "بسته 🔴 (مسدودسازی اعضای جدید)"}</b>\n` +
         `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>\n` +
+        `• 🚫 مسدودکنندگان ربات (بلاک): <b>${blockedUsers.length} نفر</b>\n` +
+        `• 🚀 کل استارت‌ها: <b>${totalStarts}</b> بار (امروز: <b>${todayStarts}</b> بار)\n` +
         `• ☕️ وضعیت دونیت: <b>${donateLink ? "فعال ✅" : "غیرفعال ❌"}</b>\n\n` +
         `از کلیدهای زیر جهت تنظیمات و مانیتورینگ استفاده نمایید:`;
 
@@ -1883,13 +2045,18 @@ async function handleUpdate(update, env) {
       const donateLink = await getDonateLink(env);
       const regOpen = await isRegistrationOpen(env);
       const users = await getAllowedUsers(env);
+      const totalStarts = await getTotalStarts(env);
+      const todayStarts = await getTodayStarts(env);
+      const blockedUsers = await getBlockedUsers(env);
 
       const panelText =
         `⚙️ <b>پنل جامع مدیریت ربات یوتیوب</b>\n\n` +
         `وضعیت تایید عضویت به <b>${next ? "روشن ✅ (نیاز به تایید دستی)" : "خاموش ❌ (آزاد و تایید خودکار)"}</b> تغییر یافت.\n\n` +
         `• 🛡 تایید عضویت: <b>${next ? "روشن ✅" : "خاموش ❌"}</b>\n` +
         `• 🚪 وضعیت عضوگیری: <b>${regOpen ? "باز 🟢" : "بسته 🔴"}</b>\n` +
-        `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>`;
+        `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>\n` +
+        `• 🚫 مسدودکنندگان ربات (بلاک): <b>${blockedUsers.length} نفر</b>\n` +
+        `• 🚀 کل استارت‌ها: <b>${totalStarts}</b> بار (امروز: <b>${todayStarts}</b> بار)`;
 
       await editMessage(chatId, msgId, panelText, {
         reply_markup: await adminKeyboard(env, donateLink),
@@ -1912,13 +2079,18 @@ async function handleUpdate(update, env) {
       const donateLink = await getDonateLink(env);
       const wlOn = await isWhitelistEnabled(env);
       const users = await getAllowedUsers(env);
+      const totalStarts = await getTotalStarts(env);
+      const todayStarts = await getTodayStarts(env);
+      const blockedUsers = await getBlockedUsers(env);
 
       const panelText =
         `⚙️ <b>پنل جامع مدیریت ربات یوتیوب</b>\n\n` +
         `وضعیت پذیرش عضو جدید به <b>${next ? "باز 🟢" : "بسته 🔴"}</b> تغییر یافت.\n\n` +
         `• 🛡 تایید عضویت: <b>${wlOn ? "روشن ✅" : "خاموش ❌"}</b>\n` +
         `• 🚪 وضعیت عضوگیری: <b>${next ? "باز 🟢" : "بسته 🔴"}</b>\n` +
-        `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>`;
+        `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>\n` +
+        `• 🚫 مسدودکنندگان ربات (بلاک): <b>${blockedUsers.length} نفر</b>\n` +
+        `• 🚀 کل استارت‌ها: <b>${totalStarts}</b> بار (امروز: <b>${todayStarts}</b> بار)`;
 
       await editMessage(chatId, msgId, panelText, {
         reply_markup: await adminKeyboard(env, donateLink),
@@ -2223,29 +2395,48 @@ async function handleUpdate(update, env) {
     if (data === "admin_stats") {
       await answerCallback(cb.id);
       const users = await getAllowedUsers(env);
+      const totalStarts = await getTotalStarts(env);
+      const todayStarts = await getTodayStarts(env);
+      const blockedUsers = await getBlockedUsers(env);
 
-      // جمع‌آوری آمار و محاسبه پرمصرف‌ترین‌ها
+      // جمع‌آوری آمار و تفکیک وضعیت کاربران
       const userStatsList = [];
       let totalAnalysesAll = 0;
+      let activeUsersCount = 0;
+      let idleUsersCount = 0;
+
       for (const uid of users) {
         const s = await getUserStats(env, uid);
-        totalAnalysesAll += (s.totalCount || 0);
+        const count = s.totalCount || 0;
+        totalAnalysesAll += count;
+        if (count > 0) {
+          activeUsersCount++;
+        } else {
+          idleUsersCount++;
+        }
         userStatsList.push({ id: uid, stats: s });
       }
 
       userStatsList.sort((a, b) => (b.stats.totalCount || 0) - (a.stats.totalCount || 0));
       const topUsers = userStatsList.slice(0, 15);
 
-      let statsText = `📈 <b>گزارش و آمار مصرف کاربران:</b>\n\n` +
-        `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>\n` +
-        `• 🎬 کل آنالیزهای ثبت‌شده در ربات: <b>${totalAnalysesAll} بار</b>\n\n` +
+      let statsText = `📈 <b>گزارش جامع وضعیت کاربران و سیستم:</b>\n\n` +
+        `👥 <b>وضعیت اعضا:</b>\n` +
+        `• کل کاربران مجاز: <b>${users.length} نفر</b>\n` +
+        `• 🟢 کاربران فعال (دارای آنالیز): <b>${activeUsersCount} نفر</b>\n` +
+        `• 🟡 کاربران معلق (بدون آنالیز): <b>${idleUsersCount} نفر</b>\n` +
+        `• 🚫 مسدودکنندگان ربات (بلاک): <b>${blockedUsers.length} نفر</b>\n\n` +
+        `🚀 <b>آمار استارت‌های ربات:</b>\n` +
+        `• 🔢 کل دفعات استارت: <b>${totalStarts}</b> بار\n` +
+        `• 📅 استارت‌های امروز: <b>${todayStarts}</b> بار\n` +
+        `• 🎬 کل آنالیزهای ویدیویی ثبت‌شده: <b>${totalAnalysesAll} بار</b>\n\n` +
         `🏆 <b>پرمصرف‌ترین کاربران (Top 15):</b>\n`;
 
       topUsers.forEach((u, idx) => {
         const s = u.stats;
         const nameDisplay = escapeHtml(s.name && s.name !== "بدون سابقه" && s.name !== "نامشخص" ? s.name : "کاربر تلگرام");
         const uTag = u.id === ADMIN_ID ? " 👑 (ادمین)" : "";
-        statsText += `${idx + 1}. <a href="tg://user?id=${u.id}">${nameDisplay}</a>${uTag}\n   └ شناسه: <code>${u.id}</code> | <b>${s.totalCount || 0}</b> تحلیل | مدیریت: /u_${u.id}\n`;
+        statsText += `${idx + 1}. <a href="tg://user?id=${u.id}">${nameDisplay}</a>${uTag}\n   └ شناسه: <code>${u.id}</code> | استارت: <b>${s.startCount || 0}</b> | آنالیز: <b>${s.totalCount || 0}</b> | /u_${u.id}\n`;
       });
 
       const buttons = [
@@ -2262,6 +2453,8 @@ async function handleUpdate(update, env) {
       const targetId = parseInt(data.replace("stat_", ""));
       await answerCallback(cb.id);
       const stats = await getUserStats(env, targetId);
+      const blockedUsers = await getBlockedUsers(env);
+      const isBlocked = blockedUsers.includes(targetId);
 
       let historyText = "<i>هنوز تحلیلی ثبت نشده است.</i>";
       if (stats.history && stats.history.length > 0) {
@@ -2272,10 +2465,14 @@ async function handleUpdate(update, env) {
 
       const isUserAdmin = targetId === ADMIN_ID;
       const nameDisplay = escapeHtml(stats.name || "کاربر");
+      const firstSeenStr = stats.firstSeen ? new Date(stats.firstSeen).toLocaleDateString("fa-IR") : "نامشخص";
       const report = `📊 <b>شناسنامه کاربر:</b> <a href="tg://user?id=${targetId}">${nameDisplay}</a>\n\n` +
         `▫️ شناسه عددی: <code>${targetId}</code>\n` +
         (stats.username ? `▫️ یوزرنیم: @${escapeHtml(stats.username)}\n` : "") +
+        (isBlocked ? `▫️ وضعیت در ربات: <b>🚫 ربات را مسدود (بلاک) کرده است</b>\n` : "") +
+        `▫️ دفعات استارت ربات: <b>${stats.startCount || 0}</b> بار\n` +
         `▫️ مجموع تحلیل‌های موفق: <b>${stats.totalCount || 0}</b> بار\n` +
+        `▫️ تاریخ اولین عضویت: <b>${firstSeenStr}</b>\n` +
         `▫️ آخرین استفاده: <b>${stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده"}</b>\n\n` +
         `📋 <b>تاریخچه فعالیت‌های اخیر:</b>\n${historyText}`;
 
@@ -2406,9 +2603,9 @@ async function handleUpdate(update, env) {
       return;
     }
 
-    // تایید و ارسال همگانی
+    // تایید و ارسال همگانی با زمان‌بندی و حفظ پهنای باند کاربران آنلاین
     if (data === "bcast_confirm") {
-      await answerCallback(cb.id, "در حال ارسال همگانی...");
+      await answerCallback(cb.id, "در حال آغاز ارسال همگانی...");
       const rawBcast = await env.BOT_KV.get(`broadcast_${userId}`);
       if (!rawBcast) {
         await editMessage(chatId, msgId, "⚠️ زمان تایید پیام به پایان رسیده است. لطفاً مجدداً اقدام کنید.", {
@@ -2417,48 +2614,131 @@ async function handleUpdate(update, env) {
         return;
       }
 
-      await editMessage(chatId, msgId, "⏳ <b>در حال ارسال پیام به کاربران... لطفاً صبور باشید.</b>");
-
       const users = await getAllowedUsers(env);
       const recipients = users.filter((id) => id !== ADMIN_ID);
+      const totalRecipients = recipients.length;
+
+      if (totalRecipients === 0) {
+        await editMessage(chatId, msgId, "⚠️ کاربری برای ارسال پیام همگانی در لیست اعضا یافت نشد.", {
+          reply_markup: { inline_keyboard: [[{ text: "🔙 برگشت به پنل", callback_data: "admin_panel" }]] },
+        });
+        return;
+      }
+
+      await editMessage(
+        chatId,
+        msgId,
+        `⏳ <b>در حال آغاز ارسال پیام همگانی...</b>\n\n` +
+        `👥 تعداد کل دریافت‌کنندگان: <b>${totalRecipients} نفر</b>\n` +
+        `⚡️ <i>تنظیم نرخ ارسال روی ۱۰ پیام در ثانیه (حفظ دو سوم پهنای باند برای تعاملات همزمان کاربران ربات)</i>`
+      );
+
+      const startTime = Date.now();
       let successCount = 0;
-      let failCount = 0;
+      let blockedCount = 0;
+      let otherFailCount = 0;
+      let processedCount = 0;
+      let lastEditTime = Date.now();
 
       for (const targetId of recipients) {
-        try {
-          const res = await sendMessage(
-            targetId,
-            `📢 <b>پیام از طرف مدیریت:</b>\n\n${rawBcast}`
-          );
-          if (res?.ok) {
-            successCount++;
-          } else {
-            failCount++;
+        let sent = false;
+        let attempts = 0;
+
+        while (!sent && attempts < 2) {
+          attempts++;
+          try {
+            const res = await sendMessage(
+              targetId,
+              `📢 <b>پیام از طرف مدیریت:</b>\n\n${rawBcast}`
+            );
+
+            if (res && res.ok) {
+              successCount++;
+              sent = true;
+            } else if (res && res.error_code === 429) {
+              // مدیریت محدودیت نرخ تلگرام با retry_after
+              const retryAfter = (res.parameters?.retry_after || 2) * 1000 + 500;
+              await new Promise((r) => setTimeout(r, retryAfter));
+            } else if (
+              res &&
+              (res.error_code === 403 ||
+                (res.description &&
+                  (res.description.includes("blocked") ||
+                    res.description.includes("deactivated") ||
+                    res.description.includes("chat not found"))))
+            ) {
+              // کاربر ربات را بلاک کرده یا اکانتش حذف شده است
+              blockedCount++;
+              await markUserBlocked(env, targetId, true);
+              sent = true;
+            } else {
+              otherFailCount++;
+              sent = true;
+            }
+          } catch {
+            otherFailCount++;
+            sent = true;
           }
-        } catch {
-          failCount++;
         }
-        await new Promise((r) => setTimeout(r, 40));
+
+        processedCount++;
+
+        // فاصله‌گذاری کنترل‌شده: هر پیام با ۱۰۰ میلی‌ثانیه تاخیر (۱۰ پیام در ثانیه)
+        // ۲/۳ از ظرفیت نرخ جهانی تلگرام (۳۰ پیام/ثانیه) برای تعامل همزمان کاربران آزاد می‌ماند
+        await new Promise((r) => setTimeout(r, 100));
+
+        // به‌روزرسانی زنده پیشرفت برای ادمین هر ۲.۵ ثانیه یکبار به منظور جلوگیری از لیمیت ویرایش پیام
+        const now = Date.now();
+        if (now - lastEditTime >= 2500 || processedCount === totalRecipients) {
+          lastEditTime = now;
+          const percent = Math.round((processedCount / totalRecipients) * 100);
+          const filled = Math.min(10, Math.floor(percent / 10));
+          const progressBar = "█".repeat(filled) + "░".repeat(10 - filled);
+
+          await editMessage(
+            chatId,
+            msgId,
+            `⏳ <b>در حال ارسال پیام همگانی...</b>\n\n` +
+            `📊 <b>پیشرفت زنده ارسال:</b>\n` +
+            `[${progressBar}] <b>${percent}٪</b> (${processedCount} از ${totalRecipients})\n\n` +
+            `• ✅ دریافت موفق: <b>${successCount}</b> نفر\n` +
+            `• 🚫 مسدود کرده (بلاک): <b>${blockedCount}</b> نفر\n` +
+            `• ❌ سایر خطاها: <b>${otherFailCount}</b> نفر\n\n` +
+            `⚡️ <i>سرعت ارسال کنترل‌شده: ۱۰ پیام در ثانیه (۶۶٪ ظرفیت برای پاسخ‌دهی به کاربران فعال رزرو است)</i>`
+          );
+        }
       }
 
       await env.BOT_KV.delete(`broadcast_${userId}`);
       await env.BOT_KV.delete(`state_${userId}`);
 
-      await addSystemLog(env, "INFO", `ارسال پیام همگانی انجام شد (${successCount} موفق، ${failCount} ناموفق)`, {
-        successCount,
-        failCount,
-        totalRecipients: recipients.length,
-      });
+      const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+      const successPercent = totalRecipients > 0 ? Math.round((successCount / totalRecipients) * 100) : 0;
+
+      await addSystemLog(
+        env,
+        "INFO",
+        `ارسال پیام همگانی به پایان رسید (${successCount} موفق، ${blockedCount} بلاک، ${otherFailCount} ناموفق در ${durationSec} ثانیه)`,
+        {
+          successCount,
+          blockedCount,
+          otherFailCount,
+          totalRecipients,
+          durationSec,
+        }
+      );
 
       const donateLink = await getDonateLink(env);
       await editMessage(
         chatId,
         msgId,
-        `✅ <b>ارسال پیام همگانی با موفقیت انجام شد!</b>\n\n` +
-        `📊 <b>گزارش ارسال:</b>\n` +
-        `• 👥 کل کاربران هدف: <b>${recipients.length}</b> نفر\n` +
-        `• ✅ دریافت موفق: <b>${successCount}</b> نفر\n` +
-        `• ❌ ناموفق (بلاک ربات یا خطا): <b>${failCount}</b> نفر`,
+        `📢 <b>گزارش نهایی ارسال پیام همگانی:</b>\n\n` +
+        `• 👥 کل مخاطبان هدف: <b>${totalRecipients}</b> نفر\n` +
+        `• ✅ تحویل موفق: <b>${successCount}</b> نفر (<b>${successPercent}٪</b>)\n` +
+        `• 🚫 ربات را مسدود کرده‌اند (بلاک): <b>${blockedCount}</b> نفر\n` +
+        `• ❌ ناموفق / سایر خطاها: <b>${otherFailCount}</b> نفر\n` +
+        `• ⏱ زمان کل ارسال: <b>${durationSec}</b> ثانیه\n\n` +
+        `🛡 <i>کنترل هوشمند ترافیک با موفقیت اعمال شد و در طول کل ارسال، ۲/۳ پهنای باند برای فعالیت آنلاین کاربران رزرو ماند.</i>`,
         { reply_markup: await adminKeyboard(env, donateLink) }
       );
       return;
@@ -2492,6 +2772,9 @@ async function handleUpdate(update, env) {
   if (!text) return;
 
   const isAdmin = userId === ADMIN_ID;
+
+  // ثبت کاربر به عنوان فعال و رفع انسداد در صورت فعالیت مجدد
+  await markUserBlocked(env, userId, false);
 
   // ثبت یا به‌روزرسانی نام و مشخصات کاربر در حافظه برای دسترسی همیشگی ادمین
   await ensureUserProfile(env, userId, userName, userUsername);
@@ -2581,6 +2864,11 @@ async function handleUpdate(update, env) {
       );
     }
     return;
+  }
+
+  // ثبت آمار استارت ربات
+  if (text === "/start") {
+    await recordBotStart(env, userId, userName, userUsername);
   }
 
   // بررسی عضویت، سیستم ثبت‌نام و سیستم تایید هویت (Whitelist)
@@ -2721,13 +3009,18 @@ async function handleUpdate(update, env) {
     const wlOn = await isWhitelistEnabled(env);
     const regOpen = await isRegistrationOpen(env);
     const users = await getAllowedUsers(env);
+    const totalStarts = await getTotalStarts(env);
+    const todayStarts = await getTodayStarts(env);
+    const blockedUsers = await getBlockedUsers(env);
 
     const panelText =
       `⚙️ <b>پنل جامع مدیریت ربات یوتیوب</b>\n\n` +
-      `📊 <b>وضعیت کلی سیستم:</b>\n` +
+      `📊 <b>وضعیت کلی سیستم و کاربران:</b>\n` +
       `• 🛡 تایید عضویت: <b>${wlOn ? "روشن ✅ (نیاز به تایید دستی)" : "خاموش ❌ (آزاد و تایید خودکار)"}</b>\n` +
       `• 🚪 وضعیت عضوگیری: <b>${regOpen ? "باز 🟢 (پذیرش عضو جدید)" : "بسته 🔴 (مسدودسازی اعضای جدید)"}</b>\n` +
       `• 👥 کل اعضای مجاز: <b>${users.length} نفر</b>\n` +
+      `• 🚫 مسدودکنندگان ربات (بلاک): <b>${blockedUsers.length} نفر</b>\n` +
+      `• 🚀 کل استارت‌ها: <b>${totalStarts}</b> بار (امروز: <b>${todayStarts}</b> بار)\n` +
       `• ☕️ وضعیت دونیت: <b>${donateLink ? "فعال ✅" : "غیرفعال ❌"}</b>\n\n` +
       `از کلیدهای زیر جهت تنظیمات و مانیتورینگ استفاده نمایید:`;
 
@@ -2780,11 +3073,48 @@ async function handleUpdate(update, env) {
   if (text === "/status") {
     const stats = await getUserStats(env, userId);
     const isAdm = userId === ADMIN_ID;
-    const statusText = `📊 <b>وضعیت حساب شما:</b>\n\n` +
-      `👤 شناسه کاربری: <code>${userId}</code>\n` +
-      `🎖 سطح دسترسی: ${isAdm ? "👑 ادمین اصلی" : "✅ کاربر مجاز"}\n` +
-      `📈 تعداد کل آنالیزها: <b>${stats.totalCount}</b> بار\n` +
-      `⏱ آخرین استفاده: ${stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده"}`;
+    const firstSeenStr = stats.firstSeen ? new Date(stats.firstSeen).toLocaleDateString("fa-IR") : "نامشخص";
+
+    let statusText = "";
+    if (isAdm) {
+      const users = await getAllowedUsers(env);
+      const totalStarts = await getTotalStarts(env);
+      const todayStarts = await getTodayStarts(env);
+      const blockedUsers = await getBlockedUsers(env);
+
+      let totalAnalysesAll = 0;
+      let activeCount = 0;
+      let idleCount = 0;
+      for (const uid of users) {
+        const s = await getUserStats(env, uid);
+        const count = s.totalCount || 0;
+        totalAnalysesAll += count;
+        if (count > 0) activeCount++;
+        else idleCount++;
+      }
+
+      statusText = `📊 <b>داشبورد آماری ربات (گزارش جامع مدیریت):</b>\n\n` +
+        `👥 <b>وضعیت کاربران:</b>\n` +
+        `• کل کاربران مجاز: <b>${users.length} نفر</b>\n` +
+        `• 🟢 کاربران فعال (دارای آنالیز): <b>${activeCount} نفر</b>\n` +
+        `• 🟡 کاربران معلق (بدون آنالیز): <b>${idleCount} نفر</b>\n` +
+        `• 🚫 مسدودکنندگان ربات (بلاک): <b>${blockedUsers.length} نفر</b>\n\n` +
+        `🚀 <b>آمار استارت‌ها و تحلیل‌ها:</b>\n` +
+        `• 🔢 کل استارت‌ها: <b>${totalStarts}</b> بار\n` +
+        `• 📅 استارت‌های امروز: <b>${todayStarts}</b> بار\n` +
+        `• 🎬 مجموع تحلیل‌های موفق: <b>${totalAnalysesAll} بار</b>\n\n` +
+        `👤 <b>آمار مصرف شخصی شما:</b>\n` +
+        `• دفعات استارت: <b>${stats.startCount || 0}</b> | آنالیزهای شخصی: <b>${stats.totalCount || 0}</b> بار`;
+    } else {
+      statusText = `📊 <b>وضعیت حساب شما:</b>\n\n` +
+        `👤 شناسه کاربری: <code>${userId}</code>\n` +
+        `🎖 سطح دسترسی: <b>✅ کاربر مجاز</b>\n` +
+        `🚀 دفعات استارت ربات: <b>${stats.startCount || 0}</b> بار\n` +
+        `📈 تعداد کل آنالیزها: <b>${stats.totalCount || 0}</b> بار\n` +
+        `📅 تاریخ اولین عضویت: <b>${firstSeenStr}</b>\n` +
+        `⏱ آخرین فعالیت: <b>${stats.lastUsed ? new Date(stats.lastUsed).toLocaleString("fa-IR") : "هنوز ثبت نشده"}</b>`;
+    }
+
     const donateLink = await getDonateLink(env);
     await sendMessage(chatId, statusText, {
       reply_markup: mainUserKeyboard(isAdm, donateLink),
