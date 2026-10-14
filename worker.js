@@ -1537,6 +1537,160 @@ async function sendUserCard(chatId, targetId, env, editMsgId = null, fromPage = 
   }
 }
 
+// ─── Broadcast Job Engine (Batched & Throttled) ───────────────
+// اندازه هر دسته برای جلوگیری از خطای سقف ۵۰ زیردرخواست (Subrequests) در پلن رایگان کلودفلر
+const BCAST_BATCH_SIZE = 40;
+
+// پردازشگر دسته‌ای پیام همگانی با زمان‌بندی و حفظ ۵۰٪ پهنای باند برای کاربران فعال
+async function processBroadcastJob(env, fromCron = false) {
+  setupConfig(env);
+  const rawJob = await env.BOT_KV.get("broadcast_job");
+  if (!rawJob) return;
+
+  let job;
+  try {
+    job = JSON.parse(rawJob);
+  } catch {
+    await env.BOT_KV.delete("broadcast_job");
+    return;
+  }
+
+  if (job.status !== "running") return;
+
+  const now = Date.now();
+  // جلوگیری از اجرای موازی/تکراری در صورتی که پردازشی کمتر از ۱۵ ثانیه پیش شروع شده باشد
+  if (job.processingSince && now - job.processingSince < 15000) {
+    return;
+  }
+
+  job.processingSince = now;
+  await env.BOT_KV.put("broadcast_job", JSON.stringify(job), { expirationTtl: 3600 });
+
+  const batch = job.recipients.slice(job.currentIndex, job.currentIndex + BCAST_BATCH_SIZE);
+  if (batch.length === 0) {
+    job.currentIndex = job.totalRecipients;
+  }
+
+  for (const targetId of batch) {
+    let sent = false;
+    let attempts = 0;
+
+    while (!sent && attempts < 2) {
+      attempts++;
+      try {
+        const res = await sendMessage(
+          targetId,
+          `📢 <b>پیام از طرف مدیریت:</b>\n\n${job.text}`
+        );
+
+        if (res && res.ok) {
+          job.successCount++;
+          sent = true;
+        } else if (res && res.error_code === 429) {
+          const retryAfter = (res.parameters?.retry_after || 2) * 1000 + 500;
+          await new Promise((r) => setTimeout(r, retryAfter));
+        } else if (
+          res &&
+          (res.error_code === 403 ||
+            (res.description &&
+              (res.description.includes("blocked") ||
+                res.description.includes("deactivated") ||
+                res.description.includes("chat not found"))))
+        ) {
+          job.blockedCount++;
+          await markUserBlocked(env, targetId, true);
+          sent = true;
+        } else {
+          job.otherFailCount++;
+          sent = true;
+        }
+      } catch {
+        job.otherFailCount++;
+        sent = true;
+      }
+    }
+
+    job.currentIndex++;
+
+    // تخصیص ۵۰٪ ظرفیت تلگرام (۱۵ پیام در ثانیه = تاخیر ۶۷ میلی‌ثانیه بین پیام‌ها)
+    // ۵۰٪ دیگر (۱۵ پیام/ثانیه) به طور کامل برای تعاملات همزمان و آزاد کاربران عادی رزرو است
+    await new Promise((r) => setTimeout(r, 67));
+  }
+
+  delete job.processingSince;
+
+  if (job.currentIndex >= job.totalRecipients) {
+    // اتمام ارسال پیام همگانی
+    await env.BOT_KV.delete("broadcast_job");
+    const durationSec = ((Date.now() - job.startTime) / 1000).toFixed(1);
+    const successPercent = job.totalRecipients > 0 ? Math.round((job.successCount / job.totalRecipients) * 100) : 0;
+
+    await addSystemLog(
+      env,
+      "INFO",
+      `ارسال پیام همگانی به پایان رسید (${job.successCount} موفق، ${job.blockedCount} بلاک، ${job.otherFailCount} ناموفق در ${durationSec} ثانیه)`,
+      {
+        successCount: job.successCount,
+        blockedCount: job.blockedCount,
+        otherFailCount: job.otherFailCount,
+        totalRecipients: job.totalRecipients,
+        durationSec,
+      }
+    );
+
+    const donateLink = await getDonateLink(env);
+    const finalReport =
+      `📢 <b>گزارش نهایی ارسال پیام همگانی:</b>\n\n` +
+      `• 👥 کل مخاطبان هدف: <b>${job.totalRecipients}</b> نفر\n` +
+      `• ✅ تحویل موفق: <b>${job.successCount}</b> نفر (<b>${successPercent}٪</b>)\n` +
+      `• 🚫 ربات را مسدود کرده‌اند (بلاک): <b>${job.blockedCount}</b> نفر\n` +
+      `• ❌ ناموفق / سایر خطاها: <b>${job.otherFailCount}</b> نفر\n` +
+      `• ⏱ زمان کل ارسال: <b>${durationSec}</b> ثانیه\n\n` +
+      `🛡 <i>کنترل هوشمند ترافیک با نرخ ۱۵ پیام در ثانیه (۵۰٪ ظرفیت ارسال همگانی و ۵۰٪ رزرو پاسخ‌دهی به کاربران فعال) با موفقیت اجرا شد.</i>`;
+
+    try {
+      await editMessage(job.adminChatId, job.progressMsgId, finalReport, {
+        reply_markup: await adminKeyboard(env, donateLink),
+      });
+    } catch {
+      await sendMessage(job.adminChatId, finalReport, {
+        reply_markup: await adminKeyboard(env, donateLink),
+      });
+    }
+  } else {
+    // بروزرسانی پیشرفت و ذخیره کار در KV برای پردازش دسته بعد توسط کران یا کلیک ادمین
+    await env.BOT_KV.put("broadcast_job", JSON.stringify(job), { expirationTtl: 3600 });
+
+    const percent = Math.round((job.currentIndex / job.totalRecipients) * 100);
+    const filled = Math.min(10, Math.floor(percent / 10));
+    const progressBar = "█".repeat(filled) + "░".repeat(10 - filled);
+    const remaining = job.totalRecipients - job.currentIndex;
+    const nextBatchSize = Math.min(BCAST_BATCH_SIZE, remaining);
+
+    const progressText =
+      `⏳ <b>در حال ارسال پیام همگانی (دسته‌ای)...</b>\n\n` +
+      `📊 <b>پیشرفت ارسال:</b>\n` +
+      `[${progressBar}] <b>${percent}٪</b> (${job.currentIndex} از ${job.totalRecipients})\n\n` +
+      `• ✅ دریافت موفق: <b>${job.successCount}</b> نفر\n` +
+      `• 🚫 مسدود کرده (بلاک): <b>${job.blockedCount}</b> نفر\n` +
+      `• ❌ سایر خطاها: <b>${job.otherFailCount}</b> نفر\n` +
+      `• 📦 باقیمانده در صف: <b>${remaining}</b> نفر\n\n` +
+      `⚡️ <i>سرعت ارسال: ۱۵ پیام در ثانیه (۵۰٪ ظرفیت به پیام همگانی و ۵۰٪ برای فعالیت آنلاین کاربران رزرو است)</i>\n\n` +
+      `⏱ <i>دسته بعدی خودکار ظرف ۱ دقیقه دیگر ارسال خواهد شد، یا می‌توانید همین حالا روی دکمه زیر برای ارسال فوری کلیک کنید:</i>`;
+
+    const buttons = [
+      [{ text: `⚡️ ارسال فوری دسته بعد (${nextBatchSize} نفر دیگر)`, callback_data: "bcast_next_batch" }],
+      [{ text: "❌ لغو ادامه ارسال همگانی", callback_data: "bcast_cancel_job" }],
+    ];
+
+    try {
+      await editMessage(job.adminChatId, job.progressMsgId, progressText, {
+        reply_markup: { inline_keyboard: buttons },
+      });
+    } catch {}
+  }
+}
+
 // ─── Update Handler ──────────────────────────────────────────
 async function handleUpdate(update, env) {
   setupConfig(env);
@@ -2603,7 +2757,7 @@ async function handleUpdate(update, env) {
       return;
     }
 
-    // تایید و ارسال همگانی با زمان‌بندی و حفظ پهنای باند کاربران آنلاین
+    // تایید و آغاز ارسال همگانی دسته‌ای با کنترل هوشمند پهنای باند و محدودیت زیردرخواست کلودفلر
     if (data === "bcast_confirm") {
       await answerCallback(cb.id, "در حال آغاز ارسال همگانی...");
       const rawBcast = await env.BOT_KV.get(`broadcast_${userId}`);
@@ -2612,6 +2766,26 @@ async function handleUpdate(update, env) {
           reply_markup: { inline_keyboard: [[{ text: "🔙 برگشت به پنل", callback_data: "admin_panel" }]] },
         });
         return;
+      }
+
+      // بررسی اینکه آیا قبلاً کاری در حال اجرا وجود دارد
+      const activeJobRaw = await env.BOT_KV.get("broadcast_job");
+      if (activeJobRaw) {
+        try {
+          const aj = JSON.parse(activeJobRaw);
+          if (aj.status === "running") {
+            await editMessage(chatId, msgId, "⚠️ یک فرآیند ارسال پیام همگانی در حال حاضر فعال است. لطفاً تا پایان آن صبر کنید یا آن را لغو کنید.", {
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: "⚡️ ارسال فوری دسته بعد", callback_data: "bcast_next_batch" }],
+                  [{ text: "❌ لغو ارسال پیام همگانی فعال", callback_data: "bcast_cancel_job" }],
+                  [{ text: "🔙 برگشت به پنل", callback_data: "admin_panel" }],
+                ],
+              },
+            });
+            return;
+          }
+        } catch {}
       }
 
       const users = await getAllowedUsers(env);
@@ -2628,123 +2802,64 @@ async function handleUpdate(update, env) {
       await editMessage(
         chatId,
         msgId,
-        `⏳ <b>در حال آغاز ارسال پیام همگانی...</b>\n\n` +
+        `⏳ <b>در حال آغاز ارسال دسته‌ای پیام همگانی...</b>\n\n` +
         `👥 تعداد کل دریافت‌کنندگان: <b>${totalRecipients} نفر</b>\n` +
-        `⚡️ <i>تنظیم نرخ ارسال روی ۱۰ پیام در ثانیه (حفظ دو سوم پهنای باند برای تعاملات همزمان کاربران ربات)</i>`
+        `⚡️ <i>تنظیم نرخ ارسال: ۱۵ پیام در ثانیه (۵۰٪ ظرفیت پیام همگانی، ۵۰٪ رزرو کاربران آنلاین)</i>`
       );
 
-      const startTime = Date.now();
-      let successCount = 0;
-      let blockedCount = 0;
-      let otherFailCount = 0;
-      let processedCount = 0;
-      let lastEditTime = Date.now();
+      const job = {
+        adminChatId: chatId,
+        progressMsgId: msgId,
+        text: rawBcast,
+        recipients,
+        currentIndex: 0,
+        totalRecipients,
+        successCount: 0,
+        blockedCount: 0,
+        otherFailCount: 0,
+        startTime: Date.now(),
+        status: "running",
+      };
 
-      for (const targetId of recipients) {
-        let sent = false;
-        let attempts = 0;
-
-        while (!sent && attempts < 2) {
-          attempts++;
-          try {
-            const res = await sendMessage(
-              targetId,
-              `📢 <b>پیام از طرف مدیریت:</b>\n\n${rawBcast}`
-            );
-
-            if (res && res.ok) {
-              successCount++;
-              sent = true;
-            } else if (res && res.error_code === 429) {
-              // مدیریت محدودیت نرخ تلگرام با retry_after
-              const retryAfter = (res.parameters?.retry_after || 2) * 1000 + 500;
-              await new Promise((r) => setTimeout(r, retryAfter));
-            } else if (
-              res &&
-              (res.error_code === 403 ||
-                (res.description &&
-                  (res.description.includes("blocked") ||
-                    res.description.includes("deactivated") ||
-                    res.description.includes("chat not found"))))
-            ) {
-              // کاربر ربات را بلاک کرده یا اکانتش حذف شده است
-              blockedCount++;
-              await markUserBlocked(env, targetId, true);
-              sent = true;
-            } else {
-              otherFailCount++;
-              sent = true;
-            }
-          } catch {
-            otherFailCount++;
-            sent = true;
-          }
-        }
-
-        processedCount++;
-
-        // فاصله‌گذاری کنترل‌شده: هر پیام با ۱۰۰ میلی‌ثانیه تاخیر (۱۰ پیام در ثانیه)
-        // ۲/۳ از ظرفیت نرخ جهانی تلگرام (۳۰ پیام/ثانیه) برای تعامل همزمان کاربران آزاد می‌ماند
-        await new Promise((r) => setTimeout(r, 100));
-
-        // به‌روزرسانی زنده پیشرفت برای ادمین هر ۲.۵ ثانیه یکبار به منظور جلوگیری از لیمیت ویرایش پیام
-        const now = Date.now();
-        if (now - lastEditTime >= 2500 || processedCount === totalRecipients) {
-          lastEditTime = now;
-          const percent = Math.round((processedCount / totalRecipients) * 100);
-          const filled = Math.min(10, Math.floor(percent / 10));
-          const progressBar = "█".repeat(filled) + "░".repeat(10 - filled);
-
-          await editMessage(
-            chatId,
-            msgId,
-            `⏳ <b>در حال ارسال پیام همگانی...</b>\n\n` +
-            `📊 <b>پیشرفت زنده ارسال:</b>\n` +
-            `[${progressBar}] <b>${percent}٪</b> (${processedCount} از ${totalRecipients})\n\n` +
-            `• ✅ دریافت موفق: <b>${successCount}</b> نفر\n` +
-            `• 🚫 مسدود کرده (بلاک): <b>${blockedCount}</b> نفر\n` +
-            `• ❌ سایر خطاها: <b>${otherFailCount}</b> نفر\n\n` +
-            `⚡️ <i>سرعت ارسال کنترل‌شده: ۱۰ پیام در ثانیه (۶۶٪ ظرفیت برای پاسخ‌دهی به کاربران فعال رزرو است)</i>`
-          );
-        }
-      }
-
+      await env.BOT_KV.put("broadcast_job", JSON.stringify(job), { expirationTtl: 3600 });
       await env.BOT_KV.delete(`broadcast_${userId}`);
       await env.BOT_KV.delete(`state_${userId}`);
 
-      const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-      const successPercent = totalRecipients > 0 ? Math.round((successCount / totalRecipients) * 100) : 0;
-
-      await addSystemLog(
-        env,
-        "INFO",
-        `ارسال پیام همگانی به پایان رسید (${successCount} موفق، ${blockedCount} بلاک، ${otherFailCount} ناموفق در ${durationSec} ثانیه)`,
-        {
-          successCount,
-          blockedCount,
-          otherFailCount,
-          totalRecipients,
-          durationSec,
-        }
-      );
-
-      const donateLink = await getDonateLink(env);
-      await editMessage(
-        chatId,
-        msgId,
-        `📢 <b>گزارش نهایی ارسال پیام همگانی:</b>\n\n` +
-        `• 👥 کل مخاطبان هدف: <b>${totalRecipients}</b> نفر\n` +
-        `• ✅ تحویل موفق: <b>${successCount}</b> نفر (<b>${successPercent}٪</b>)\n` +
-        `• 🚫 ربات را مسدود کرده‌اند (بلاک): <b>${blockedCount}</b> نفر\n` +
-        `• ❌ ناموفق / سایر خطاها: <b>${otherFailCount}</b> نفر\n` +
-        `• ⏱ زمان کل ارسال: <b>${durationSec}</b> ثانیه\n\n` +
-        `🛡 <i>کنترل هوشمند ترافیک با موفقیت اعمال شد و در طول کل ارسال، ۲/۳ پهنای باند برای فعالیت آنلاین کاربران رزرو ماند.</i>`,
-        { reply_markup: await adminKeyboard(env, donateLink) }
-      );
+      await processBroadcastJob(env, false);
       return;
     }
 
-    // انصراف از ارسال همگانی
+    // ارسال فوری دسته بعدی توسط ادمین
+    if (data === "bcast_next_batch") {
+      await answerCallback(cb.id, "⚡️ در حال ارسال دسته بعدی...");
+      await processBroadcastJob(env, false);
+      return;
+    }
+
+    // لغو فرآیند فعال ارسال همگانی
+    if (data === "bcast_cancel_job") {
+      await answerCallback(cb.id, "فرآیند ارسال متوقف شد.");
+      const rawJob = await env.BOT_KV.get("broadcast_job");
+      await env.BOT_KV.delete("broadcast_job");
+      let statsNote = "";
+      if (rawJob) {
+        try {
+          const job = JSON.parse(rawJob);
+          statsNote = `\n\n📊 <b>آمار تا لحظه توقف:</b>\n` +
+            `• تحویل موفق: <b>${job.successCount}</b> نفر\n` +
+            `• مسدود (بلاک): <b>${job.blockedCount}</b> نفر\n` +
+            `• سایر خطاها: <b>${job.otherFailCount}</b> نفر\n` +
+            `• ارسال شده: <b>${job.currentIndex}</b> از <b>${job.totalRecipients}</b> نفر`;
+        } catch {}
+      }
+      const donateLink = await getDonateLink(env);
+      await editMessage(chatId, msgId, `❌ <b>ارسال پیام همگانی متوقف شد.</b>${statsNote}`, {
+        reply_markup: await adminKeyboard(env, donateLink),
+      });
+      return;
+    }
+
+    // انصراف از ارسال همگانی پیش از تایید
     if (data === "bcast_cancel") {
       await env.BOT_KV.delete(`broadcast_${userId}`);
       await env.BOT_KV.delete(`state_${userId}`);
@@ -3479,5 +3594,9 @@ export default {
       ctx.waitUntil(handleUpdate(update, env));
     } catch {}
     return new Response("OK", { status: 200 });
+  },
+  async scheduled(event, env, ctx) {
+    setupConfig(env);
+    ctx.waitUntil(processBroadcastJob(env, true));
   },
 };
